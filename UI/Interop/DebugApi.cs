@@ -438,6 +438,7 @@ namespace Mesen.Interop
 			return callstack;
 		}
 
+		[DllImport(DllPath)] public static extern int GetProfilerCpuUsage(CpuType type);
 		[DllImport(DllPath)] public static extern void ResetProfiler(CpuType type);
 		[DllImport(DllPath, EntryPoint = "GetProfilerData")] private static extern void GetProfilerDataWrapper(CpuType type, IntPtr profilerData, ref UInt32 functionCount);
 		public static unsafe int GetProfilerData(CpuType type, ref ProfiledFunction[] profilerData)
@@ -980,6 +981,10 @@ namespace Mesen.Interop
 		public InteropEventViewerCategoryCfg ArcadeCardWrites;
 		public InteropEventViewerCategoryCfg ArcadeCardReads;
 
+		public InteropEventViewerCategoryCfg VpcWrites;
+		public InteropEventViewerCategoryCfg VpcReads;
+
+		public PceEventViewerSgxFilter SuperGrafxFilter;
 		[MarshalAs(UnmanagedType.I1)] public bool ShowPreviousFrameEvents;
 	}
 
@@ -1050,6 +1055,15 @@ namespace Mesen.Interop
 		[MarshalAs(UnmanagedType.I1)] public bool ShowPreviousFrameEvents;
 	}
 
+	public enum TilemapBackground
+	{
+		Default,
+		Transparent,
+		Black,
+		White,
+		Magenta
+	}
+
 	public enum TilemapDisplayMode
 	{
 		Default,
@@ -1075,6 +1089,7 @@ namespace Mesen.Interop
 		public TilemapHighlightMode AttributeHighlightMode;
 
 		public TilemapDisplayMode DisplayMode;
+		public TilemapBackground Background;
 
 		public InteropGetTilemapOptions ToInterop()
 		{
@@ -1083,7 +1098,8 @@ namespace Mesen.Interop
 				MasterClock = MasterClock,
 				TileHighlightMode = TileHighlightMode,
 				AttributeHighlightMode = AttributeHighlightMode,
-				DisplayMode = DisplayMode
+				DisplayMode = DisplayMode,
+				Background = Background
 			};
 		}
 	}
@@ -1099,6 +1115,7 @@ namespace Mesen.Interop
 		public TilemapHighlightMode AttributeHighlightMode;
 
 		public TilemapDisplayMode DisplayMode;
+		public TilemapBackground Background;
 	}
 
 	public enum TileBackground
@@ -1508,11 +1525,13 @@ namespace Mesen.Interop
 		public StackFrameFlags Flags;
 	};
 
+	[Flags]
 	public enum StackFrameFlags
 	{
 		None = 0,
 		Nmi = 1,
-		Irq = 2
+		Irq = 2,
+		Halt = 4
 	}
 
 	public enum CpuType : byte

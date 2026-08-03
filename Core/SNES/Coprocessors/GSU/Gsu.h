@@ -31,6 +31,7 @@ private:
 	bool _waitForRamAccess = false;
 	bool _stopped = true;
 	bool _r15Changed = false;
+	bool _isFx3 = false;
 	uint8_t _maxPrgRomBank = 0;
 	uint32_t _lastOpAddr = 0;
 
@@ -177,6 +178,7 @@ private:
 
 public:
 	static constexpr uint8_t Fx3RomType = 0x17;
+	static constexpr uint8_t Fx3BatteryRomType = 0x18; //FX3 with battery
 
 	Gsu(SnesConsole* console, uint32_t gsuRamSize, bool isFx3);
 	virtual ~Gsu();

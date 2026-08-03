@@ -141,7 +141,7 @@
 			<Control ID="chkBilinearInterpolation">Use bilinear interpolation when scaling</Control>
 			<Control ID="chkUseSrgbTextureFormat">Use sRGB when applying interpolation</Control>
 			<Control ID="chkEnableVariableRefreshRate">Enable variable refresh rate (fullscreen only)</Control>
-			<Control ID="chkEnableVariableRefreshRateHint">When using a monitor that supports VRR (FreeSync, G-Sync), VRR will be enabled when running in borderless (not exclusive) fullscreen mode. This improves frame pacing and is recommended when supported.&#13;&#13;Warning: When enabled on a display that does not support VRR at all (or using a core that runs at an FPS outside of the monitor's supported VRR range), enabling this option will cause screen tearing when in fullscreen mode.</Control>
+			<Control ID="chkEnableVariableRefreshRateHint">When using a monitor that supports VRR (FreeSync, G-Sync), VRR will be enabled when running in borderless (not exclusive) fullscreen mode. This improves frame pacing and is recommended when supported.&#13;&#13;Note: Enabling or disabling this option while in fullscreen mode has no effect.&#13;&#13;Warning: When enabled on a display that does not support VRR at all (or using a core that runs at an FPS outside of the monitor's supported VRR range), enabling this option will cause screen tearing when in fullscreen mode.</Control>
 			<Control ID="lblFullscreenResolution">Fullscreen Resolution:</Control>
 			<Control ID="chkFullscreenForceIntegerScale">Use integer scale values when entering fullscreen mode</Control>
 			<Control ID="chkUseExclusiveFullscreen">Use exclusive fullscreen mode</Control>
@@ -274,6 +274,7 @@
 
 			<Control ID="lblHighResBlendMode">High resolution blend mode: </Control>
 			<Control ID="lblColorCorrection">Color correction: </Control>
+			<Control ID="lblDeinterlaceMode">Deinterlace mode: </Control>
 			<Control ID="chkHideBgLayer1">Hide background layer 1</Control>
 			<Control ID="chkHideBgLayer2">Hide background layer 2</Control>
 			<Control ID="chkHideBgLayer3">Hide background layer 3</Control>
@@ -1086,6 +1087,7 @@
 
 			<Control ID="btnToggleSettings">Toggle settings panel</Control>
 
+			<Control ID="lblBackground">Background: </Control>
 			<Control ID="lblDisplayMode">Display mode: </Control>
 			<Control ID="lblSelectedTile">Selected Tile</Control>
 			<Control ID="lblTilemap">Tilemap</Control>
@@ -2516,6 +2518,12 @@ E
 			<Value ID="NtscBlackLevel">NTSC-U black level</Value>
 			<Value ID="DeepBlackBoost">Deep black boost (ares)</Value>
 		</Enum>
+		<Enum ID="SnesDeinterlaceMode">
+			<Value ID="Weave">Weave (default)</Value>
+			<Value ID="BobBlend">Bob + blend</Value>
+			<Value ID="Bob">Bob</Value>
+			<Value ID="CurrentField">Show current field only</Value>
+		</Enum>
 		<Enum ID="PceConsoleType">
 			<Value ID="Auto">Auto (recommended)</Value>
 			<Value ID="PcEngine">PC Engine (JP)</Value>
@@ -2526,6 +2534,11 @@ E
 			<Value ID="CdRom">CD-ROM²</Value>
 			<Value ID="SuperCdRom">Super CD-ROM²</Value>
 			<Value ID="Arcade">Arcade CD-ROM² (recommended)</Value>
+		</Enum>
+		<Enum ID="PceEventViewerSgxFilter">
+			<Value ID="Both">Show both</Value>
+			<Value ID="Vdc1">VDC1 only</Value>
+			<Value ID="Vdc2">VDC2 only</Value>
 		</Enum>
 		<Enum ID="RamState">
 			<Value ID="Random">Random Values</Value>
@@ -2970,6 +2983,13 @@ E
 			<Value ID="None">None</Value>
 			<Value ID="HideUsed">Hide used tiles</Value>
 			<Value ID="HideUnused">Hide unused tiles</Value>
+		</Enum>
+		<Enum ID="TilemapBackground">
+			<Value ID="Default">Default</Value>
+			<Value ID="Transparent">Transparent</Value>
+			<Value ID="Black">Black</Value>
+			<Value ID="White">White</Value>
+			<Value ID="Magenta">Magenta</Value>
 		</Enum>
 		<Enum ID="TileBackground">
 			<Value ID="Default">Default (Color 0)</Value>

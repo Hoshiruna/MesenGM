@@ -171,6 +171,15 @@ enum class TilemapHighlightMode
 	Writes
 };
 
+enum class TilemapBackground
+{
+	Default,
+	Transparent,
+	Black,
+	White,
+	Magenta,
+};
+
 struct GetTilemapOptions
 {
 	uint8_t Layer;
@@ -182,6 +191,7 @@ struct GetTilemapOptions
 	TilemapHighlightMode AttributeHighlightMode;
 
 	TilemapDisplayMode DisplayMode;
+	TilemapBackground Background;
 };
 
 enum class TileFormat
@@ -269,7 +279,8 @@ enum class StackFrameFlags
 {
 	None = 0,
 	Nmi = 1,
-	Irq = 2
+	Irq = 2,
+	Halt = 4
 };
 
 struct StackFrameInfo
@@ -545,4 +556,10 @@ struct DebugControllerState
 	{
 		return A || B || X || Y || L || R || U || D || Up || Down || Left || Right || Select || Start;
 	}
+};
+
+enum class ByteCodeFormat
+{
+	Bytes,
+	HexValue
 };

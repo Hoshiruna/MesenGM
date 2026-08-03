@@ -9,7 +9,6 @@
 #include "SNES/SnesDmaController.h"
 #include "SNES/SnesCpu.Instructions.h"
 #include "SNES/SnesCpu.Shared.h"
-#include "Shared/EventType.h"
 #include "Shared/MemoryOperationType.h"
 
 #ifndef DUMMYCPU
@@ -78,6 +77,9 @@ void SnesCpu::ProcessHaltedState()
 		Idle();
 		if(over) {
 			_state.StopState = SnesCpuStopState::Running;
+#ifndef DUMMYCPU
+			_emu->ProcessEvent(EventType::HaltEnded, CpuType::Snes);
+#endif
 			CheckForInterrupts();
 		}
 	}
