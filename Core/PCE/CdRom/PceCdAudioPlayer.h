@@ -39,7 +39,7 @@ public:
 	void SetEndPosition(uint32_t endSector, CdPlayEndBehavior endBehavior);
 	void Stop() { _state.Status = CdAudioStatus::Stopped; }
 	void Pause() { _state.Status = CdAudioStatus::Paused; }
-	void SetIdle() { _state.Status = CdAudioStatus::Inactive; }
+	void SetIdle();
 
 	PceCdAudioPlayerState& GetState() { return _state; }
 

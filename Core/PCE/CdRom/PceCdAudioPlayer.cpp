@@ -47,6 +47,16 @@ void PceCdAudioPlayer::SetEndPosition(uint32_t endSector, CdPlayEndBehavior endB
 	_state.Status = CdAudioStatus::Playing;
 }
 
+void PceCdAudioPlayer::SetIdle()
+{
+	_state.Status = CdAudioStatus::Inactive;
+
+	//Games can start playing a track and then start loading data on the disk instead, which should cancel
+	//any incomplete seek operation. Without this, a "good" status gets sent, which breaks the SCSI bus'
+	//current state (and can break games, e.g Spriggan Mark 2)
+	_seekDelay = 0;
+}
+
 void PceCdAudioPlayer::PlaySample()
 {
 	if(_state.Status == CdAudioStatus::Playing) {
