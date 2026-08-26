@@ -99,7 +99,7 @@ namespace Mesen.ViewModels
 
 		private void UpdateWindowTitle()
 		{
-			string title = "";
+			string title = "MesenGM";
 			string romName = RomInfo.GetRomName();
 			if(!string.IsNullOrWhiteSpace(romName)) {
 				title += " - " + romName;
