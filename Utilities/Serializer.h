@@ -97,7 +97,7 @@ private:
 	string GetKey(const char* name, int index)
 	{
 		string valName = NormalizeName(name, index);
-#ifdef DEBUG
+#ifdef _DEBUG
 		if(valName.empty()) {
 			throw std::runtime_error("invalid value name");
 		}
@@ -126,6 +126,17 @@ private:
 		constexpr bool isBigEndian = false;
 		constexpr int mask = isBigEndian ? sizeof(T) - 1 : 0;
 		for(int i = 0; i < (int)sizeof(T); i++) {
+			ptr[i ^ mask] = src[i];
+		}
+	}
+
+	template<typename T>
+	void ReadValue(T& value, uint8_t* src, int size)
+	{
+		uint8_t* ptr = (uint8_t*)&value;
+		constexpr bool isBigEndian = false;
+		constexpr int mask = isBigEndian ? size - 1 : 0;
+		for(int i = 0; i < size; i++) {
 			ptr[i ^ mask] = src[i];
 		}
 	}
@@ -217,7 +228,7 @@ private:
 
 	__forceinline void CheckDuplicateKey(string& key)
 	{
-#ifdef DEBUG
+#ifdef _DEBUG
 		if(!_usedKeys.emplace(key).second) {
 			throw std::runtime_error("Duplicate key");
 		}
@@ -308,6 +319,11 @@ public:
 							SerializeValue& savedValue = result->second;
 							if(savedValue.Size >= sizeof(T)) {
 								ReadValue(value, savedValue.DataPtr);
+							} else if(savedValue.Size > 0) {
+								//If the saved value is a smaller size than the current value, set the value to 0 and load the available data
+								//This is for backward-compatibility (can happen when a value is changed from e.g uint8_t to uint16_t, etc.)
+								memset(&value, 0, sizeof(T));
+								ReadValue(value, savedValue.DataPtr, savedValue.Size);
 							} else {
 								//TODO review this - is it better to keep the state as-is if the data can't be found?
 								//Setting to 0 can break compatibility with old save states - maybe keeping the current state is safer?

@@ -11,6 +11,7 @@ private:
 	VideoConfig _videoConfig = {};
 
 	SnesHighResBlendMode _highResBlendMode = SnesHighResBlendMode::None;
+	SnesColorCorrectionMode _colorCorrection = SnesColorCorrectionMode::None;
 	bool _forceFixedRes = false;
 
 	void InitLookupTable();
@@ -26,6 +27,7 @@ protected:
 
 public:
 	SnesDefaultVideoFilter(Emulator* emu);
+	~SnesDefaultVideoFilter();
 
 	void ApplyFilter(uint16_t* ppuOutputBuffer) override;
 	OverscanDimensions GetOverscan() override;

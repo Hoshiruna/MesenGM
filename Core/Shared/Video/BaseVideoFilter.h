@@ -2,6 +2,8 @@
 #include "pch.h"
 #include "Utilities/SimpleLock.h"
 #include "Shared/SettingTypes.h"
+#include "Shared/RenderedFrame.h"
+#include "Shared/Video/BlendFilter.h"
 
 class Emulator;
 
@@ -22,6 +24,8 @@ protected:
 	Emulator* _emu = nullptr;
 	FrameInfo _baseFrameInfo = {};
 	FrameInfo _frameInfo = {};
+	RenderedFrame _frame = {};
+	BlendFilter _blendFilter;
 	void* _frameData = nullptr;
 	uint16_t* _ppuOutputBuffer = nullptr;
 
@@ -35,19 +39,14 @@ protected:
 	bool IsOddFrame();
 	uint32_t GetVideoPhase();
 	uint32_t GetBufferSize();
-
-protected:
 	virtual FrameInfo GetFrameInfo();
 
 public:
 	BaseVideoFilter(Emulator* emu);
 	virtual ~BaseVideoFilter();
 
-	template<typename T> bool NtscFilterOptionsChanged(T& ntscSetup, VideoConfig& cfg);
-	template<typename T> static void InitNtscFilter(T& ntscSetup, VideoConfig& cfg);
-
 	uint32_t* GetOutputBuffer();
-	FrameInfo SendFrame(uint16_t* ppuOutputBuffer, uint32_t frameNumber, uint32_t videoPhase, void* frameData, bool enableOverscan = true);
+	FrameInfo SendFrame(uint16_t* ppuOutputBuffer, uint32_t frameNumber, uint32_t videoPhase, void* frameData, bool enableOverscan = true, RenderedFrame frame = {});
 	void TakeScreenshot(string romName, VideoFilterType filterType);
 	void TakeScreenshot(VideoFilterType filterType, string filename, std::stringstream* stream = nullptr);
 

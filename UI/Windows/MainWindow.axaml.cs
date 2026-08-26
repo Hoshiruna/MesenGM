@@ -43,7 +43,6 @@ namespace Mesen.Windows
 		private CommandLineHelper? _cmdLine;
 
 		private bool _testModeEnabled;
-		private bool _needResume = false;
 		private bool _needCloseValidation = true;
 		private bool _isClosing = false;
 
@@ -62,11 +61,11 @@ namespace Mesen.Windows
 		private WindowState _prevWindowState;
 
 		//Used to suppress key-repeat keyup events on Linux
-		private Dictionary<Key, IDisposable> _pendingKeyUpEvents = new();
+		private Dictionary<UInt16, IDisposable> _pendingKeyUpEvents = new();
 		private bool _isLinux = false;
 
 		private Stopwatch _stopWatch = Stopwatch.StartNew();
-		private Dictionary<Key, long> _keyPressedStamp = new();
+		private Dictionary<UInt16, long> _keyPressedStamp = new();
 		private bool _focusInMenu;
 		private bool _needRendererReset;
 
@@ -111,6 +110,7 @@ namespace Mesen.Windows
 			_softwareRenderer = this.GetControl<SoftwareRendererView>("SoftwareRenderer");
 			_audioPlayer = this.GetControl<ContentControl>("AudioPlayer");
 			_mainMenu = this.GetControl<MainMenuView>("MainMenu");
+			_mainMenu.MainMenu.Opened += MainMenu_Opened;
 			ConfigManager.Config.MainWindow.LoadWindowSettings(this);
 
 			Console.CancelKeyPress += Console_CancelKeyPress;
@@ -618,9 +618,6 @@ namespace Mesen.Windows
 
 			_preventFullscreenToggle = true;
 			if(WindowState == WindowState.FullScreen) {
-				if(ConfigManager.Config.Video.EnableVariableRefreshRate && !ConfigManager.Config.Video.UseExclusiveFullscreen && OperatingSystem.IsWindows()) {
-					_needRendererReset = true;
-				}
 				ResetRenderer();
 
 				Task.Run(() => {
@@ -728,15 +725,16 @@ namespace Mesen.Windows
 			}
 
 			if(e.Key != Key.None) {
-				_keyPressedStamp[e.Key] = _stopWatch.ElapsedTicks;
+				UInt16 keyCode = e.GetKeyCode();
+				_keyPressedStamp[keyCode] = _stopWatch.ElapsedTicks;
 
-				if(_isLinux && _pendingKeyUpEvents.TryGetValue(e.Key, out IDisposable? cancelTimer)) {
+				if(_isLinux && _pendingKeyUpEvents.TryGetValue(keyCode, out IDisposable? cancelTimer)) {
 					//Cancel any pending key up event
 					cancelTimer.Dispose();
-					_pendingKeyUpEvents.Remove(e.Key);
+					_pendingKeyUpEvents.Remove(keyCode);
 				}
 
-				InputApi.SetKeyState((UInt16)e.Key, true);
+				InputApi.SetKeyState(keyCode, true);
 			}
 
 			if(e.Key == Key.Tab || e.Key == Key.F10) {
@@ -753,23 +751,24 @@ namespace Mesen.Windows
 			}
 
 			if(e.Key != Key.None) {
-				if(e.Key.IsSpecialKey() && (!_keyPressedStamp.TryGetValue(e.Key, out long stamp) || ((_stopWatch.ElapsedTicks - stamp) * 1000 / Stopwatch.Frequency) < 10)) {
+				UInt16 keyCode = e.GetKeyCode();
+				if(e.IsSpecialKey() && (!_keyPressedStamp.TryGetValue(keyCode, out long stamp) || ((_stopWatch.ElapsedTicks - stamp) * 1000 / Stopwatch.Frequency) < 10)) {
 					//Key up received without key down, or key pressed for less than 10 ms, pretend the key was pressed for 50ms
 					//Some special keys can behave this way (e.g printscreen)
-					InputApi.SetKeyState((UInt16)e.Key, true);
-					DispatcherTimer.RunOnce(() => InputApi.SetKeyState((UInt16)e.Key, false), TimeSpan.FromMilliseconds(50), DispatcherPriority.MaxValue);
-					_keyPressedStamp.Remove(e.Key);
+					InputApi.SetKeyState(keyCode, true);
+					DispatcherTimer.RunOnce(() => InputApi.SetKeyState(keyCode, false), TimeSpan.FromMilliseconds(50), DispatcherPriority.MaxValue);
+					_keyPressedStamp.Remove(keyCode);
 					return;
 				}
 
-				_keyPressedStamp.Remove(e.Key);
+				_keyPressedStamp.Remove(keyCode);
 
 				if(_isLinux) {
 					//Process keyup events after 1ms on Linux to prevent key repeat from triggering key up/down repeatedly
-					IDisposable cancelTimer = DispatcherTimer.RunOnce(() => InputApi.SetKeyState((UInt16)e.Key, false), TimeSpan.FromMilliseconds(1), DispatcherPriority.MaxValue);
-					_pendingKeyUpEvents[e.Key] = cancelTimer;
+					IDisposable cancelTimer = DispatcherTimer.RunOnce(() => InputApi.SetKeyState(keyCode, false), TimeSpan.FromMilliseconds(1), DispatcherPriority.MaxValue);
+					_pendingKeyUpEvents[keyCode] = cancelTimer;
 				} else {
-					InputApi.SetKeyState((UInt16)e.Key, false);
+					InputApi.SetKeyState(keyCode, false);
 				}
 			}
 		}
@@ -782,17 +781,26 @@ namespace Mesen.Windows
 			}
 		}
 
+		private void MainMenu_Opened(object? sender, RoutedEventArgs e)
+		{
+			UpdateAutoPause();
+		}
+
 		private void TimerUpdateBackgroundFlag(object? sender, EventArgs e)
 		{
-			Window? activeWindow = ApplicationHelper.GetActiveWindow();
-
-			PreferencesConfig cfg = ConfigManager.Config.Preferences;
-
 			bool focusInMenu = MenuHelper.IsFocusInMenu(_mainMenu.MainMenu);
 			if(focusInMenu && !_focusInMenu) {
 				InputApi.ResetKeyState();
 			}
 			_focusInMenu = focusInMenu;
+
+			UpdateAutoPause();
+		}
+
+		private void UpdateAutoPause()
+		{
+			Window? activeWindow = ApplicationHelper.GetActiveWindow();
+			PreferencesConfig cfg = ConfigManager.Config.Preferences;
 
 			bool needPause = activeWindow == null && cfg.PauseWhenInBackground;
 			if(activeWindow != null) {
@@ -803,7 +811,7 @@ namespace Mesen.Windows
 
 			if(needPause) {
 				if(!EmuApi.IsPaused()) {
-					_needResume = true;
+					_model.MainMenu.AutoPaused = true;
 
 					DebuggerWindow? wnd = DebugWindowManager.GetDebugWindow<DebuggerWindow>(x => x.CpuType == _model.RomInfo.ConsoleType.GetMainCpuType());
 					if(wnd != null) {
@@ -813,11 +821,11 @@ namespace Mesen.Windows
 
 					EmuApi.Pause();
 				}
-			} else if(_needResume) {
+			} else if(_model.MainMenu.AutoPaused) {
 				//Don't resume if the load/save state dialog is opened
 				if(!_model.RecentGames.Visible) {
 					EmuApi.Resume();
-					_needResume = false;
+					_model.MainMenu.AutoPaused = false;
 				}
 			}
 		}

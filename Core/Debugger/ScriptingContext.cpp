@@ -12,7 +12,6 @@
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/EventType.h"
-#include "Shared/SaveStateManager.h"
 #include "Utilities/magic_enum.hpp"
 #include "Utilities/StringUtilities.h"
 
@@ -116,7 +115,7 @@ string ScriptingContext::GetErrorMessage()
 		errorMsg = lua_tostring(_lua, -1);
 	} else if(lua_istable(_lua, -1)) {
 		//Serialize tables to Lua-formatted string
-		errorMsg = "error: " + SerializeTable();
+		errorMsg = "error: " + LuaApi::SerializeTable(_lua);
 	} else {
 		//Convert all other values to a string
 		luaL_tolstring(_lua, -1, nullptr);
@@ -124,50 +123,6 @@ string ScriptingContext::GetErrorMessage()
 		lua_pop(_lua, 1);
 	}
 	return errorMsg;
-}
-
-string ScriptingContext::SerializeTable()
-{
-	string result = "{ ";
-	bool firstKey = true;
-	lua_pushnil(_lua);
-	while(lua_next(_lua, -2) != 0) {
-		int keyType = lua_type(_lua, -2);
-		if(keyType == LUA_TSTRING || keyType == LUA_TNUMBER) {
-			if(!firstKey) {
-				result += ", ";
-			}
-			firstKey = false;
-			if(keyType == LUA_TSTRING) {
-				size_t len = 0;
-				const char* cstr = lua_tolstring(_lua, -2, &len);
-				result += string(cstr, len);
-			} else {
-				if(lua_isinteger(_lua, -2)) {
-					lua_Integer integer = lua_tointeger(_lua, -2);
-					result += std::to_string(integer);
-				} else {
-					lua_Number number = lua_tonumber(_lua, -2);
-					result += std::to_string(number);
-				}
-			}
-			result += " = ";
-
-			if(lua_type(_lua, -1) == LUA_TSTRING) {
-				result += "\"";
-				result += lua_tostring(_lua, -1);
-				result += "\"";
-			} else if(lua_istable(_lua, -1)) {
-				result += SerializeTable();
-			} else {
-				luaL_tolstring(_lua, -1, nullptr);
-				result += lua_tostring(_lua, -1);
-				lua_pop(_lua, 1);
-			}
-		}
-		lua_pop(_lua, 1);
-	}
-	return result + " }";
 }
 
 void ScriptingContext::ProcessLuaError()
@@ -225,9 +180,34 @@ void ScriptingContext::LuaOpenLibs(lua_State* L, bool allowIoOsAccess)
 void ScriptingContext::Log(string message)
 {
 	auto lock = _logLock.AcquireSafe();
-	_logRows.push_back(message);
-	if(_logRows.size() > 500) {
-		_logRows.pop_front();
+	size_t start = 0;
+
+	if(message.size() <= 200) {
+		_logRows.push_back(message);
+		if(_logRows.size() > 500) {
+			_logRows.pop_front();
+		}
+	} else {
+		//Split large strings into several separate lines
+		//This is needed to prevent performance issues in the UI
+		//when a single line is several thousand characters long.
+		while(start < message.size()) {
+			size_t pos = message.find_first_of(',', start + 200);
+
+			if(pos == string::npos) {
+				pos = message.find_first_of(' ', start + 200);
+				if(pos == string::npos) {
+					pos = std::min<size_t>(message.size() - 1, start + 300);
+				}
+			}
+
+			_logRows.push_back(message.substr(start, pos - start + 1));
+			start = pos + 1;
+
+			if(_logRows.size() > 500) {
+				_logRows.pop_front();
+			}
+		}
 	}
 }
 

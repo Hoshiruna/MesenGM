@@ -141,7 +141,7 @@
 			<Control ID="chkBilinearInterpolation">Use bilinear interpolation when scaling</Control>
 			<Control ID="chkUseSrgbTextureFormat">Use sRGB when applying interpolation</Control>
 			<Control ID="chkEnableVariableRefreshRate">Enable variable refresh rate (fullscreen only)</Control>
-			<Control ID="chkEnableVariableRefreshRateHint">When using a monitor that supports VRR (FreeSync, G-Sync), VRR will be enabled when running in borderless (not exclusive) fullscreen mode. This improves frame pacing and is recommended when supported.&#13;&#13;Warning: When enabled on a display that does not support VRR at all (or using a core that runs at an FPS outside of the monitor's supported VRR range), enabling this option will cause screen tearing when in fullscreen mode.</Control>
+			<Control ID="chkEnableVariableRefreshRateHint">When using a monitor that supports VRR (FreeSync, G-Sync), VRR will be enabled when running in borderless (not exclusive) fullscreen mode. This improves frame pacing and is recommended when supported.&#13;&#13;Note: Enabling or disabling this option while in fullscreen mode has no effect.&#13;&#13;Warning: When enabled on a display that does not support VRR at all (or using a core that runs at an FPS outside of the monitor's supported VRR range), enabling this option will cause screen tearing when in fullscreen mode.</Control>
 			<Control ID="lblFullscreenResolution">Fullscreen Resolution:</Control>
 			<Control ID="chkFullscreenForceIntegerScale">Use integer scale values when entering fullscreen mode</Control>
 			<Control ID="chkUseExclusiveFullscreen">Use exclusive fullscreen mode</Control>
@@ -273,6 +273,8 @@
 			<Control ID="lblMiscSettings">Miscellaneous Settings</Control>
 
 			<Control ID="lblHighResBlendMode">High resolution blend mode: </Control>
+			<Control ID="lblColorCorrection">Color correction: </Control>
+			<Control ID="lblDeinterlaceMode">Deinterlace mode: </Control>
 			<Control ID="chkHideBgLayer1">Hide background layer 1</Control>
 			<Control ID="chkHideBgLayer2">Hide background layer 2</Control>
 			<Control ID="chkHideBgLayer3">Hide background layer 3</Control>
@@ -281,6 +283,7 @@
 			<Control ID="lblOverscan">Overscan</Control>
 			<Control ID="chkDisableFrameSkipping">Disable frame skipping when fast forwarding</Control>
 			<Control ID="chkForceFixedResolution">Use fixed output resolution (2x scale, ≈512x478)</Control>
+			<Control ID="chkRemoveSpriteLimit">Remove sprite limit</Control>
 		</Form>
 		<Form ID="NesConfigView">
 			<Control ID="tpgGeneral">General</Control>
@@ -373,7 +376,11 @@
 			<Control ID="lblRamPowerOnState">Default power on state for RAM: </Control>
 			<Control ID="grpGeneral">General</Control>
 			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
-			
+
+			<Control ID="grpOverclocking">Overclocking</Control>
+			<Control ID="lblOverclockHint">Overclocking can help reduce or remove slowdowns in games (but it can also cause issues). To overclock, increase the value below.&#13;Note: Overclocking is not available in SGB mode.</Control>
+			<Control ID="lblOverclockScanlineCount">Additional scanlines:</Control>
+
 			<Control ID="tpgVideo">Video</Control>
 			<Control ID="lblGameboyPalette">Game Boy (DMG) Palette</Control>
 			<Control ID="lblGbBackground">Background:</Control>
@@ -391,7 +398,8 @@
 			<Control ID="chkGbcAdjustColors">Enable GBC LCD color emulation</Control>
 			<Control ID="chkDisableBackground">Disable background</Control>
 			<Control ID="chkDisableSprites">Disable sprites</Control>
-
+			<Control ID="chkRemoveSpriteLimit">Remove sprite limit</Control>
+			
 			<Control ID="lblMiscSettings">Miscellaneous Settings</Control>
 			<Control ID="chkHideSgbBorders">Hide Super Game Boy borders</Control>
 
@@ -1098,6 +1106,7 @@
 
 			<Control ID="btnToggleSettings">Toggle settings panel</Control>
 
+			<Control ID="lblBackground">Background: </Control>
 			<Control ID="lblDisplayMode">Display mode: </Control>
 			<Control ID="lblSelectedTile">Selected Tile</Control>
 			<Control ID="lblTilemap">Tilemap</Control>
@@ -2011,6 +2020,7 @@ E
 			<Value ID="None">None</Value>
 			<Value ID="SnesController">SNES Controller</Value>
 			<Value ID="SnesRumbleController">SNES Rumble</Value>
+			<Value ID="SnesBlueRetroController">SNES BlueRetro</Value>
 			<Value ID="SnesMouse">SNES Mouse</Value>
 			<Value ID="SuperScope">Super Scope</Value>
 			<Value ID="Multitap">Super Multitap</Value>
@@ -2522,6 +2532,17 @@ E
 			<Value ID="BlendAll">Blend entire screen</Value>
 			<Value ID="BlendEvenOdd">Blend even/odd columns (fake transparency)</Value>
 		</Enum>
+		<Enum ID="SnesColorCorrectionMode">
+			<Value ID="None">None (default)</Value>
+			<Value ID="NtscBlackLevel">NTSC-U black level</Value>
+			<Value ID="DeepBlackBoost">Deep black boost (ares)</Value>
+		</Enum>
+		<Enum ID="SnesDeinterlaceMode">
+			<Value ID="Weave">Weave (default)</Value>
+			<Value ID="BobBlend">Bob + blend</Value>
+			<Value ID="Bob">Bob</Value>
+			<Value ID="CurrentField">Show current field only</Value>
+		</Enum>
 		<Enum ID="PceConsoleType">
 			<Value ID="Auto">Auto (recommended)</Value>
 			<Value ID="PcEngine">PC Engine (JP)</Value>
@@ -2532,6 +2553,11 @@ E
 			<Value ID="CdRom">CD-ROM²</Value>
 			<Value ID="SuperCdRom">Super CD-ROM²</Value>
 			<Value ID="Arcade">Arcade CD-ROM² (recommended)</Value>
+		</Enum>
+		<Enum ID="PceEventViewerSgxFilter">
+			<Value ID="Both">Show both</Value>
+			<Value ID="Vdc1">VDC1 only</Value>
+			<Value ID="Vdc2">VDC2 only</Value>
 		</Enum>
 		<Enum ID="RamState">
 			<Value ID="Random">Random Values</Value>
@@ -2976,6 +3002,13 @@ E
 			<Value ID="None">None</Value>
 			<Value ID="HideUsed">Hide used tiles</Value>
 			<Value ID="HideUnused">Hide unused tiles</Value>
+		</Enum>
+		<Enum ID="TilemapBackground">
+			<Value ID="Default">Default</Value>
+			<Value ID="Transparent">Transparent</Value>
+			<Value ID="Black">Black</Value>
+			<Value ID="White">White</Value>
+			<Value ID="Magenta">Magenta</Value>
 		</Enum>
 		<Enum ID="TileBackground">
 			<Value ID="Default">Default (Color 0)</Value>
