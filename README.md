@@ -1,4 +1,4 @@
-# Mesen-GM
+# MesenGM
 
 Mesen is a multi-system emulator for Windows, Linux, and macOS. It supports NES, SNES, Game Boy (GB/SGB/GBC), Game Boy Advance, PC Engine, SMS/Game Gear, and WonderSwan (WS/WSC).
 
@@ -32,6 +32,14 @@ See [COMPILING.md](COMPILING.md)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## MCP debugger server
+
+Windows builds include a local MCP bridge for debugger clients. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
+
+## MCP and AI assistance disclaimer
+
+Before connecting an AI client, read the [MCP and AI assistance disclaimer](DISCLAIMER.md). You are responsible for reviewing debugger actions and for any data sent to third-party services.
 
 ## License
 

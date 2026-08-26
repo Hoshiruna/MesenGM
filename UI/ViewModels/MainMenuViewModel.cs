@@ -1121,6 +1121,12 @@ namespace Mesen.ViewModels
 					ActionType = ActionType.OpenDebugSettings,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenDebugSettings),
 					OnClick = () => DebuggerConfigWindow.Open(DebugConfigWindowTab.Debugger, wnd)
+				},
+				new ContextMenuSeparator() { IsVisible = () => OperatingSystem.IsWindows() },
+				new ContextMenuAction() {
+					ActionType = ActionType.OpenMcpServer,
+					IsVisible = () => OperatingSystem.IsWindows(),
+					OnClick = () => ApplicationHelper.GetOrCreateUniqueWindow(wnd, () => new McpServerWindow())
 				}
 			};
 

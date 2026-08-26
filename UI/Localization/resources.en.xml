@@ -828,6 +828,20 @@
 			<Control ID="btnOK">OK</Control>
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
+		<Form ID="McpServerWindow">
+			<Control ID="wndTitle">MCP Server</Control>
+			<Control ID="lblIntro">The debugger pipe is available while Mesen is open. Start the localhost HTTP bridge here, or run MCPServer.exe with --stdio from your MCP client.</Control>
+			<Control ID="lblPort">Port:</Control>
+			<Control ID="btnCopyUrl">Copy URL</Control>
+			<Control ID="lblUrl">URL:</Control>
+			<Control ID="lblStatus">Status:</Control>
+			<Control ID="statusRunning">HTTP bridge running at {0}</Control>
+			<Control ID="statusStopped">HTTP bridge stopped</Control>
+			<Control ID="errorInvalidPort">Port must be between 1 and 65535.</Control>
+			<Control ID="btnStart">Start</Control>
+			<Control ID="btnStop">Stop</Control>
+			<Control ID="btnClose">Close</Control>
+		</Form>
 		<Form ID="CheatListWindow">
 			<Control ID="wndTitle">Cheats</Control>
 			<Control ID="tabCheats">Cheats</Control>
@@ -857,8 +871,8 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="AboutWindow">
-			<Control ID="wndTitle">About - Mesen-GM</Control>
-			<Control ID="lblName">Mesen-GM</Control>
+			<Control ID="wndTitle">About - MesenGM</Control>
+			<Control ID="lblName">MesenGM</Control>
 			<Control ID="lblWebsite">Website:</Control>
 			<Control ID="lblLink">github.com/Hoshiruna/MesenGM</Control>
 			<Control ID="lblVersion">Version:</Control>
@@ -896,7 +910,7 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="UpdatePromptWindow">
-			<Control ID="wndTitle">Mesen-GM Updater</Control>
+			<Control ID="wndTitle"> Updater</Control>
 			<Control ID="lblLatestVersion">Latest version:</Control>
 			<Control ID="lblInstalledVersion">Installed version:</Control>
 			<Control ID="lblNewVersionAvailable">A new version of Mesen is available</Control>
@@ -905,8 +919,8 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="SetupWizardWindow">
-			<Control ID="wndTitle">Mesen-GM</Control>
-			<Control ID="lblMesen">Mesen-GM - Emulator</Control>
+			<Control ID="wndTitle"></Control>
+			<Control ID="lblMesen"> - Emulator</Control>
 			<Control ID="lblConfigWizard">Configuration</Control>
 			<Control ID="lblInitialSetup">Please take a moment to perform Mesen's initial setup.</Control>
 			<Control ID="lblStorageLocation">Data Storage Location</Control>
@@ -3600,6 +3614,7 @@ E
 			<Value ID="OpenSpriteViewer">Sprite Viewer</Value>
 			<Value ID="OpenPaletteViewer">Palette Viewer</Value>
 			<Value ID="OpenDebugSettings">Settings</Value>
+			<Value ID="OpenMcpServer">MCP Server</Value>
 
 			<Value ID="Tools">Tools</Value>
 			<Value ID="HistoryViewer">History Viewer</Value>

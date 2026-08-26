@@ -60,7 +60,7 @@ namespace Mesen
 						} else {
 							errorMessage = ResourceHelper.GetMessage("UnableToStartMissingDependencies", ex.Message + Environment.NewLine + ex.StackTrace);
 						}
-						MessageBox.Show(null, errorMessage, "Mesen-GM", MessageBoxButtons.OK, MessageBoxIcon.Error, out MessageBox msgbox);
+						MessageBox.Show(null, errorMessage, "MesenGM", MessageBoxButtons.OK, MessageBoxIcon.Error, out MessageBox msgbox);
 						desktop.MainWindow = msgbox;
 						base.OnFrameworkInitializationCompleted();
 						return;

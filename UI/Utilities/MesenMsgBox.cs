@@ -28,12 +28,12 @@ namespace Mesen.Utilities
 
 			if(resourceText.StartsWith("[[")) {
 				if(args != null && args.Length > 0) {
-					return MessageBox.Show(wnd, string.Format("Critical error (" + text + ") {0}", args), "Mesen-GM", buttons, icon);
+					return MessageBox.Show(wnd, string.Format("Critical error (" + text + ") {0}", args), "MesenGM", buttons, icon);
 				} else {
-					return MessageBox.Show(wnd, string.Format("Critical error (" + text + ")"), "Mesen-GM", buttons, icon);
+					return MessageBox.Show(wnd, string.Format("Critical error (" + text + ")"), "MesenGM", buttons, icon);
 				}
 			} else {
-				return MessageBox.Show(wnd, ResourceHelper.GetMessage(text, args), "Mesen-GM", buttons, icon);
+				return MessageBox.Show(wnd, ResourceHelper.GetMessage(text, args), "MesenGM", buttons, icon);
 			}
 		}
 	}

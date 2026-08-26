@@ -560,6 +560,9 @@ namespace Mesen.Debugger.Utilities
 		[IconFile("Settings")]
 		OpenDebugSettings,
 
+		[IconFile("McpServer")]
+		OpenMcpServer,
+
 		[IconFile("SpcDebugger")]
 		OpenSpcDebugger,
 		[IconFile("Cx4Debugger")]

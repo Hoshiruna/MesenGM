@@ -195,6 +195,21 @@
 			<Control ID="btnSelect">選択...</Control>
 			<Control ID="btnDelete">ファイルを削除</Control>
 		</Form>
+
+		<Form ID="McpServerWindow">
+			<Control ID="wndTitle">MCP サーバー</Control>
+			<Control ID="lblIntro">Mesen の起動中はデバッガーパイプを利用できます。ここでローカルホスト HTTP ブリッジを開始するか、MCP クライアントから MCPServer.exe を --stdio 付きで実行します。</Control>
+			<Control ID="lblPort">ポート:</Control>
+			<Control ID="btnCopyUrl">URL をコピー</Control>
+			<Control ID="lblUrl">URL:</Control>
+			<Control ID="lblStatus">状態:</Control>
+			<Control ID="statusRunning">HTTP ブリッジ実行中: {0}</Control>
+			<Control ID="statusStopped">HTTP ブリッジ停止中</Control>
+			<Control ID="errorInvalidPort">ポートは 1 から 65535 の範囲で指定してください。</Control>
+			<Control ID="btnStart">開始</Control>
+			<Control ID="btnStop">停止</Control>
+			<Control ID="btnClose">閉じる</Control>
+		</Form>
 	</Forms>
 
 	<Messages>
@@ -254,6 +269,9 @@
 	</Messages>
 
 	<Enums>
+		<Enum ID="ActionType">
+			<Value ID="OpenMcpServer">MCP サーバー</Value>
+		</Enum>
 		<Enum ID="MesenTheme">
 			<Value ID="Light">ライト</Value>
 			<Value ID="Dark">ダーク</Value>

@@ -181,6 +181,7 @@ namespace Mesen.Windows
 			}
 
 			_timerBackgroundFlag.Stop();
+			McpServerManager.Shutdown();
 			EmuApi.Stop();
 			_listener?.Dispose();
 			EmuApi.Release();
@@ -275,6 +276,7 @@ namespace Mesen.Windows
 				_listener.OnNotification += OnNotification;
 
 				_model.Init(this);
+				McpServerManager.Initialize();
 
 				ConfigManager.Config.ApplyConfig();
 
