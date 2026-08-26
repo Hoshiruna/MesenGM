@@ -195,6 +195,21 @@
 			<Control ID="btnSelect">选择...</Control>
 			<Control ID="btnDelete">删除文件</Control>
 		</Form>
+
+		<Form ID="McpServerWindow">
+			<Control ID="wndTitle">MCP 服务器</Control>
+			<Control ID="lblIntro">Mesen 运行期间调试器管道始终可用。可在此启动本地主机 HTTP 桥接，或从 MCP 客户端使用 --stdio 运行 MCPServer.exe。</Control>
+			<Control ID="lblPort">端口：</Control>
+			<Control ID="btnCopyUrl">复制 URL</Control>
+			<Control ID="lblUrl">URL：</Control>
+			<Control ID="lblStatus">状态：</Control>
+			<Control ID="statusRunning">HTTP 桥接正在运行：{0}</Control>
+			<Control ID="statusStopped">HTTP 桥接已停止</Control>
+			<Control ID="errorInvalidPort">端口必须介于 1 和 65535 之间。</Control>
+			<Control ID="btnStart">启动</Control>
+			<Control ID="btnStop">停止</Control>
+			<Control ID="btnClose">关闭</Control>
+		</Form>
 	</Forms>
 
 	<Messages>
@@ -254,6 +269,9 @@
 	</Messages>
 
 	<Enums>
+		<Enum ID="ActionType">
+			<Value ID="OpenMcpServer">MCP 服务器</Value>
+		</Enum>
 		<Enum ID="MesenTheme">
 			<Value ID="Light">浅色</Value>
 			<Value ID="Dark">深色</Value>

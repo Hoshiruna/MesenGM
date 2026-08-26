@@ -25,7 +25,7 @@ namespace Mesen.ViewModels
 		[ObservableProperty] public partial AudioPlayerViewModel? AudioPlayer { get; private set; }
 		[ObservableProperty] public partial RecentGamesViewModel RecentGames { get; private set; }
 
-		[ObservableProperty] public partial string WindowTitle { get; private set; } = "Mesen-GM";
+		[ObservableProperty] public partial string WindowTitle { get; private set; } = "";
 		[ObservableProperty] public partial Size RendererSize { get; set; }
 
 		[ObservableProperty] public partial bool IsMenuVisible { get; set; }
@@ -99,7 +99,7 @@ namespace Mesen.ViewModels
 
 		private void UpdateWindowTitle()
 		{
-			string title = "Mesen-GM";
+			string title = "";
 			string romName = RomInfo.GetRomName();
 			if(!string.IsNullOrWhiteSpace(romName)) {
 				title += " - " + romName;
