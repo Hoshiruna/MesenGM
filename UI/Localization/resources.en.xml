@@ -863,8 +863,8 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="AboutWindow">
-			<Control ID="wndTitle">About - </Control>
-			<Control ID="lblName"></Control>
+			<Control ID="wndTitle">About - MesenGM</Control>
+			<Control ID="lblName">MesenGM</Control>
 			<Control ID="lblWebsite">Website:</Control>
 			<Control ID="lblLink">github.com/Hoshiruna/MesenGM</Control>
 			<Control ID="lblVersion">Version:</Control>

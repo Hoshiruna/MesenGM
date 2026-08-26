@@ -17,7 +17,18 @@ For Codex CLI:
 codex mcp add mesen-debugger -- "C:\path\to\MCPServer.exe" --stdio
 ```
 
-Use the `MCPServer.exe` next to `Mesen.exe`. Only one bridge process can connect at a time, so stop the HTTP bridge in Mesen before starting a stdio client.
+For Claude Code in PowerShell, use `add-json` so `--stdio` is passed to the bridge instead of being parsed as a Claude option:
+
+```powershell
+$claudeConfig = @{
+    type = "stdio"
+    command = "C:\path\to\MCPServer.exe"
+    args = @("--stdio")
+}
+claude mcp add-json mesen-debugger ($claudeConfig | ConvertTo-Json -Compress)
+```
+
+Replace `C:\path\to\MCPServer.exe` with the full path to the `MCPServer.exe` next to `Mesen.exe`. Only one bridge process can connect at a time, so stop the HTTP bridge in Mesen before starting a stdio client.
 
 ## Connect through HTTP
 
@@ -31,6 +42,12 @@ For Codex CLI:
 
 ```powershell
 codex mcp add mesen-debugger --url http://127.0.0.1:51234/mcp/
+```
+
+For Claude Code:
+
+```powershell
+claude mcp add --transport http mesen-debugger http://127.0.0.1:51234/mcp/
 ```
 
 The endpoint listens only on the IPv4 loopback address. Stopping the HTTP bridge does not stop Mesen's debugger pipe, so a stdio client can connect afterward.

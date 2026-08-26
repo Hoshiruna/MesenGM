@@ -1,4 +1,5 @@
 using Avalonia.Interactivity;
+using Avalonia.Input.Platform;
 using Avalonia.Markup.Xaml;
 using Mesen.Localization;
 using Mesen.Utilities;

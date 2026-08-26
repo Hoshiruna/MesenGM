@@ -79,19 +79,19 @@ namespace Mesen.Debugger.Utilities
 		private static string HandleToolsList(JsonNode id)
 		{
 			JsonArray tools = new() {
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"debugger_status",
 					"Report the Mesen emulator and debugger state.",
 					EmptySchema(),
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_rom_info",
 					"Get information about the loaded ROM plus the CPU and memory region identifiers available to debugger tools.",
 					EmptySchema(),
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_cpu_state",
 					"Get CPU registers. SNES, NES, and Game Boy return structured register sets; other supported CPUs return the program counter.",
 					new JsonObject {
@@ -102,7 +102,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_ppu_state",
 					"Get scanline, cycle, and frame state for the SNES, NES, or Game Boy graphics processor.",
 					new JsonObject {
@@ -113,7 +113,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_memory_range",
 					$"Read up to {MaxMemoryTransfer} bytes from a Mesen memory region.",
 					new JsonObject {
@@ -127,7 +127,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"set_memory",
 					$"Write up to {MaxMemoryTransfer} bytes to a Mesen memory region.",
 					new JsonObject {
@@ -148,7 +148,7 @@ namespace Mesen.Debugger.Utilities
 					destructive: true,
 					idempotent: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_disassembly",
 					"Disassemble code around an address. Omit address to center the result on the current program counter.",
 					new JsonObject {
@@ -161,7 +161,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_trace_tail",
 					"Get recent execution trace rows.",
 					new JsonObject {
@@ -173,7 +173,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"get_debug_events",
 					"Get recent debugger events for one CPU.",
 					new JsonObject {
@@ -185,7 +185,7 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"set_breakpoints",
 					"Replace all debugger breakpoints. Breakpoint flags are Read=1, Write=2, Execute=4, and Forbid=8.",
 					new JsonObject {
@@ -214,7 +214,7 @@ namespace Mesen.Debugger.Utilities
 					readOnly: false,
 					idempotent: true
 				),
-				MakeToolDef(
+				(JsonNode)MakeToolDef(
 					"step",
 					"Step debugger execution. Step types: Step=0, StepOut=1, StepOver=2, CpuCycleStep=3, PpuStep=4, PpuScanline=5, PpuFrame=6, SpecificScanline=7, RunToNmi=8, RunToIrq=9, StepBack=10.",
 					new JsonObject {
@@ -227,8 +227,8 @@ namespace Mesen.Debugger.Utilities
 					},
 					readOnly: false
 				),
-				MakeToolDef("resume", "Resume debugger execution.", EmptySchema(), readOnly: false, idempotent: true),
-				MakeToolDef("pause", "Break debugger execution after the current instruction.", EmptySchema(), readOnly: false)
+				(JsonNode)MakeToolDef("resume", "Resume debugger execution.", EmptySchema(), readOnly: false, idempotent: true),
+				(JsonNode)MakeToolDef("pause", "Break debugger execution after the current instruction.", EmptySchema(), readOnly: false)
 			};
 
 			return MakeJsonRpcResult(id, new JsonObject { ["tools"] = tools });
@@ -281,7 +281,7 @@ namespace Mesen.Debugger.Utilities
 			RomInfo romInfo = EmuApi.GetRomInfo();
 			JsonArray cpuTypes = new();
 			foreach(CpuType cpuType in romInfo.CpuTypes) {
-				cpuTypes.Add(new JsonObject {
+				cpuTypes.Add((JsonNode)new JsonObject {
 					["id"] = (int)cpuType,
 					["name"] = cpuType.ToString()
 				});
@@ -292,7 +292,7 @@ namespace Mesen.Debugger.Utilities
 				foreach(MemoryType memoryType in Enum.GetValues<MemoryType>()) {
 					int size = memoryType == MemoryType.None ? 0 : DebugApi.GetMemorySize(memoryType);
 					if(size > 0) {
-						memoryTypes.Add(new JsonObject {
+						memoryTypes.Add((JsonNode)new JsonObject {
 							["id"] = (int)memoryType,
 							["name"] = memoryType.ToString(),
 							["size"] = size
@@ -418,7 +418,7 @@ namespace Mesen.Debugger.Utilities
 			JsonArray values = new();
 			StringBuilder hex = new();
 			for(int index = 0; index < bytes.Length; index++) {
-				values.Add(bytes[index]);
+				values.Add((JsonNode)bytes[index]);
 				if(index > 0) {
 					hex.Append(' ');
 				}
@@ -480,7 +480,7 @@ namespace Mesen.Debugger.Utilities
 				if(line.Address < 0) {
 					continue;
 				}
-				output.Add(new JsonObject {
+				output.Add((JsonNode)new JsonObject {
 					["address"] = line.Address,
 					["text"] = line.Text.Trim(),
 					["bytes"] = line.ByteCodeStr.Trim(),
@@ -510,7 +510,7 @@ namespace Mesen.Debugger.Utilities
 					}
 					hex.Append(byteCode[index].ToString("X2"));
 				}
-				lines.Add(new JsonObject {
+				lines.Add((JsonNode)new JsonObject {
 					["pc"] = row.ProgramCounter,
 					["text"] = row.GetOutput(),
 					["bytes"] = hex.ToString()
@@ -531,7 +531,7 @@ namespace Mesen.Debugger.Utilities
 			JsonArray output = new();
 			for(int index = 0; index < Math.Min(events.Length, maxCount); index++) {
 				DebugEventInfo debugEvent = events[index];
-				output.Add(new JsonObject {
+				output.Add((JsonNode)new JsonObject {
 					["type"] = debugEvent.Type.ToString(),
 					["pc"] = debugEvent.ProgramCounter,
 					["scanline"] = debugEvent.Scanline,
@@ -770,7 +770,7 @@ namespace Mesen.Debugger.Utilities
 		{
 			JsonArray array = new();
 			foreach(string value in values) {
-				array.Add(value);
+				array.Add((JsonNode)value);
 			}
 			return array;
 		}
@@ -780,7 +780,7 @@ namespace Mesen.Debugger.Utilities
 			string text = data.ToJsonString();
 			return MakeJsonRpcResult(id, new JsonObject {
 				["content"] = new JsonArray {
-					new JsonObject {
+					(JsonNode)new JsonObject {
 						["type"] = "text",
 						["text"] = text
 					}
@@ -794,7 +794,7 @@ namespace Mesen.Debugger.Utilities
 		{
 			return MakeJsonRpcResult(id, new JsonObject {
 				["content"] = new JsonArray {
-					new JsonObject {
+					(JsonNode)new JsonObject {
 						["type"] = "text",
 						["text"] = message
 					}

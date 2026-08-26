@@ -37,6 +37,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Windows builds include a local MCP bridge for debugger clients. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
 
+## MCP and AI assistance disclaimer
+
+Before connecting an AI client, read the [MCP and AI assistance disclaimer](DISCLAIMER.md). You are responsible for reviewing debugger actions and for any data sent to third-party services.
+
 ## License
 
 Mesen is available under the GPL V3 license.  Full text here: <http://www.gnu.org/licenses/gpl-3.0.en.html>

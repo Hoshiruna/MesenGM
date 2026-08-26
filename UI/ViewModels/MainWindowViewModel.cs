@@ -25,7 +25,7 @@ namespace Mesen.ViewModels
 		[ObservableProperty] public partial AudioPlayerViewModel? AudioPlayer { get; private set; }
 		[ObservableProperty] public partial RecentGamesViewModel RecentGames { get; private set; }
 
-		[ObservableProperty] public partial string WindowTitle { get; private set; } = "";
+		[ObservableProperty] public partial string WindowTitle { get; private set; } = "MesenGM";
 		[ObservableProperty] public partial Size RendererSize { get; set; }
 
 		[ObservableProperty] public partial bool IsMenuVisible { get; set; }
