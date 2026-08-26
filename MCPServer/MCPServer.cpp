@@ -5,6 +5,14 @@
 //
 // MCP protocol handling lives in the C# process. This executable only adapts
 // the named-pipe protocol to standard MCP stdio or Streamable HTTP transports.
+//
+// The bridge never blocks a client forever: it connects to the pipe lazily,
+// bounds every pipe operation with a timeout, and answers "initialize" (plus a
+// cached "tools/list") on its own when Mesen is closed. That keeps a client's
+// session alive so later calls reconnect instead of failing for good.
+//
+// All diagnostics go to stderr. In stdio mode stdout carries the protocol, and
+// Mesen captures stderr to show the bridge log in its MCP Server window.
 
 #ifndef WIN32_LEAN_AND_MEAN
 	#define WIN32_LEAN_AND_MEAN
@@ -35,18 +43,21 @@
 namespace
 {
 	constexpr const char* PipeName = R"(\\.\pipe\MesenDebug)";
-	constexpr const char* MutexName = "Local\\MesenMcpServerSingleton";
 	constexpr size_t MaxHeaderSize = 64 * 1024;
 	constexpr size_t MaxBodySize = 1024 * 1024;
+	constexpr DWORD PipeConnectTimeoutMs = 3000;
+	constexpr DWORD PipeRequestTimeoutMs = 20000;
+	constexpr DWORD PipeCancelTimeoutMs = 2000;
 
 	int g_port = 51234;
 	bool g_stdioMode = false;
 	DWORD g_parentPid = 0;
-	HANDLE g_singletonMutex = nullptr;
 	HANDLE g_parentProcess = nullptr;
 	HANDLE g_parentWatcherThread = nullptr;
 	HANDLE g_pipe = INVALID_HANDLE_VALUE;
+	HANDLE g_pipeEvent = nullptr;
 	CRITICAL_SECTION g_pipeLock;
+	std::string g_readBuffer;
 
 	std::string Trim(const std::string& value)
 	{
@@ -90,31 +101,6 @@ namespace
 		return 0;
 	}
 
-	bool AcquireSingletonMutex()
-	{
-		g_singletonMutex = CreateMutexA(nullptr, FALSE, MutexName);
-		if(g_singletonMutex == nullptr) {
-			fprintf(stderr, "[MCPServer] Failed to create the singleton mutex.\n");
-			return false;
-		}
-
-		if(GetLastError() == ERROR_ALREADY_EXISTS) {
-			fprintf(stderr, "[MCPServer] Another MCP bridge process is already running.\n");
-			CloseHandle(g_singletonMutex);
-			g_singletonMutex = nullptr;
-			return false;
-		}
-		return true;
-	}
-
-	void ReleaseSingletonMutex()
-	{
-		if(g_singletonMutex != nullptr) {
-			CloseHandle(g_singletonMutex);
-			g_singletonMutex = nullptr;
-		}
-	}
-
 	void StopParentWatcher()
 	{
 		if(g_parentWatcherThread != nullptr) {
@@ -135,18 +121,220 @@ namespace
 
 		g_parentProcess = OpenProcess(SYNCHRONIZE, FALSE, g_parentPid);
 		if(g_parentProcess == nullptr) {
-			fprintf(stderr, "[MCPServer] Failed to open parent process %lu.\n", static_cast<unsigned long>(g_parentPid));
+			fprintf(stderr, "[MCPServer] status=failed reason=parent-process-%lu-not-found\n", static_cast<unsigned long>(g_parentPid));
 			return false;
 		}
 
 		g_parentWatcherThread = CreateThread(nullptr, 0, ParentWatcherThreadProc, nullptr, 0, nullptr);
 		if(g_parentWatcherThread == nullptr) {
-			fprintf(stderr, "[MCPServer] Failed to start the parent watcher thread.\n");
+			fprintf(stderr, "[MCPServer] status=failed reason=parent-watcher-thread\n");
 			StopParentWatcher();
 			return false;
 		}
 		return true;
 	}
+
+	//
+	// Minimal JSON scanning. The bridge does not interpret MCP payloads. It only
+	// needs the request id (to echo it in transport errors), the method name (to
+	// pick a fallback), and the result object of a tools/list response (to cache).
+	//
+
+	size_t SkipWhitespace(const std::string& body, size_t position)
+	{
+		while(position < body.size() && std::isspace(static_cast<unsigned char>(body[position]))) {
+			position++;
+		}
+		return position;
+	}
+
+	// Returns the exact source text of the JSON value that starts at position.
+	std::string ReadJsonValue(const std::string& body, size_t position)
+	{
+		position = SkipWhitespace(body, position);
+		if(position >= body.size()) {
+			return "";
+		}
+
+		size_t start = position;
+		char first = body[position];
+		if(first == '"' || first == '{' || first == '[') {
+			int depth = 0;
+			bool inString = false;
+			bool escaped = false;
+			for(; position < body.size(); position++) {
+				char value = body[position];
+				if(inString) {
+					if(escaped) {
+						escaped = false;
+					} else if(value == '\\') {
+						escaped = true;
+					} else if(value == '"') {
+						inString = false;
+						if(depth == 0) {
+							return body.substr(start, position - start + 1);
+						}
+					}
+					continue;
+				}
+
+				if(value == '"') {
+					inString = true;
+				} else if(value == '{' || value == '[') {
+					depth++;
+				} else if(value == '}' || value == ']') {
+					depth--;
+					if(depth == 0) {
+						return body.substr(start, position - start + 1);
+					}
+				}
+			}
+			return "";
+		}
+
+		while(position < body.size() && body[position] != ',' && body[position] != '}' && body[position] != ']' &&
+			!std::isspace(static_cast<unsigned char>(body[position]))) {
+			position++;
+		}
+		return body.substr(start, position - start);
+	}
+
+	// Finds key at the requested object depth (1 is the top-level object) and
+	// returns its raw value text. A negative depth matches at any depth.
+	std::string ExtractValue(const std::string& body, const std::string& key, int requiredDepth)
+	{
+		std::string quoted = "\"" + key + "\"";
+		int depth = 0;
+		bool inString = false;
+		bool escaped = false;
+
+		for(size_t index = 0; index < body.size(); index++) {
+			char value = body[index];
+			if(inString) {
+				if(escaped) {
+					escaped = false;
+				} else if(value == '\\') {
+					escaped = true;
+				} else if(value == '"') {
+					inString = false;
+				}
+				continue;
+			}
+
+			if(value == '{' || value == '[') {
+				depth++;
+			} else if(value == '}' || value == ']') {
+				depth--;
+			} else if(value == '"') {
+				if((requiredDepth < 0 || depth == requiredDepth) && body.compare(index, quoted.size(), quoted) == 0) {
+					size_t position = SkipWhitespace(body, index + quoted.size());
+					if(position < body.size() && body[position] == ':') {
+						return ReadJsonValue(body, position + 1);
+					}
+				}
+				inString = true;
+			}
+		}
+		return "";
+	}
+
+	std::string Unquote(const std::string& value)
+	{
+		if(value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+			return value.substr(1, value.size() - 2);
+		}
+		return value;
+	}
+
+	std::string GetRequestId(const std::string& body)
+	{
+		std::string id = ExtractValue(body, "id", 1);
+		return id.empty() ? "null" : id;
+	}
+
+	std::string MakeTransportError(const std::string& body, const char* message)
+	{
+		return R"({"jsonrpc":"2.0","id":)" + GetRequestId(body) +
+			R"(,"error":{"code":-32603,"message":")" + std::string(message) + R"("}})";
+	}
+
+	// Answered without Mesen so a client that starts before the emulator still
+	// completes its handshake and can retry tool calls later in the same session.
+	std::string MakeLocalInitializeResponse(const std::string& body)
+	{
+		std::string requested = ExtractValue(body, "protocolVersion", -1);
+		if(requested != R"("2024-11-05")" && requested != R"("2025-03-26")") {
+			requested = R"("2025-06-18")";
+		}
+
+		return R"({"jsonrpc":"2.0","id":)" + GetRequestId(body) + R"(,"result":{"protocolVersion":)" + requested +
+			R"(,"capabilities":{"tools":{"listChanged":false}})"
+			R"(,"serverInfo":{"name":"Mesen2-MCP","version":"1.2.0"})"
+			R"(,"instructions":"Mesen is not running yet. Ask the user to open Mesen and load a ROM, then call get_rom_info to confirm the connection."}})";
+	}
+
+	//
+	// tools/list cache. Mesen owns the tool definitions, so the bridge only stores
+	// the last result object it saw and replays it when the emulator is closed.
+	//
+
+	std::string GetToolsCachePath()
+	{
+		char folder[MAX_PATH] = {};
+		DWORD length = GetEnvironmentVariableA("LOCALAPPDATA", folder, MAX_PATH);
+		if(length == 0 || length >= MAX_PATH) {
+			return "";
+		}
+
+		std::string path = std::string(folder, length) + "\\Mesen2";
+		CreateDirectoryA(path.c_str(), nullptr);
+		return path + "\\mcp-tools.cache.json";
+	}
+
+	void SaveToolsCache(const std::string& result)
+	{
+		std::string path = GetToolsCachePath();
+		if(path.empty()) {
+			return;
+		}
+
+		FILE* file = nullptr;
+		if(fopen_s(&file, path.c_str(), "wb") == 0 && file != nullptr) {
+			fwrite(result.data(), 1, result.size(), file);
+			fclose(file);
+		}
+	}
+
+	std::string LoadToolsCache()
+	{
+		std::string path = GetToolsCachePath();
+		if(path.empty()) {
+			return "";
+		}
+
+		FILE* file = nullptr;
+		if(fopen_s(&file, path.c_str(), "rb") != 0 || file == nullptr) {
+			return "";
+		}
+
+		std::string content;
+		char buffer[8192];
+		size_t read = 0;
+		while((read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+			content.append(buffer, read);
+			if(content.size() > MaxBodySize) {
+				content.clear();
+				break;
+			}
+		}
+		fclose(file);
+		return Trim(content);
+	}
+
+	//
+	// Named pipe. Opened overlapped so a wedged emulator cannot hold a client
+	// request open forever. Every entry point runs under g_pipeLock.
+	//
 
 	bool PipeIsOpen()
 	{
@@ -156,81 +344,184 @@ namespace
 	void PipeClose()
 	{
 		if(PipeIsOpen()) {
+			CancelIoEx(g_pipe, nullptr);
 			CloseHandle(g_pipe);
 		}
 		g_pipe = INVALID_HANDLE_VALUE;
+		g_readBuffer.clear();
 	}
 
-	void PipeConnect()
+	bool PipeTryConnect(DWORD timeoutMs)
 	{
 		PipeClose();
+
+		ULONGLONG deadline = GetTickCount64() + timeoutMs;
 		while(true) {
-			g_pipe = CreateFileA(PipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-			if(g_pipe != INVALID_HANDLE_VALUE) {
-				return;
+			g_pipe = CreateFileA(PipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+			if(PipeIsOpen()) {
+				g_readBuffer.clear();
+				fprintf(stderr, "[MCPServer] status=pipe-connected\n");
+				return true;
 			}
 
 			DWORD error = GetLastError();
+			ULONGLONG now = GetTickCount64();
+			if(now >= deadline) {
+				g_pipe = INVALID_HANDLE_VALUE;
+				fprintf(stderr, "[MCPServer] status=mesen-unavailable error=%lu\n", static_cast<unsigned long>(error));
+				return false;
+			}
+
+			DWORD remaining = static_cast<DWORD>(std::min<ULONGLONG>(deadline - now, 500));
 			if(error == ERROR_PIPE_BUSY) {
-				WaitNamedPipeA(PipeName, 2000);
+				WaitNamedPipeA(PipeName, remaining);
 			} else {
-				fprintf(stderr, "[MCPServer] Waiting for Mesen...\n");
-				Sleep(1000);
+				Sleep(std::min<DWORD>(remaining, 200));
 			}
 		}
 	}
 
-	bool PipeReadLine(std::string& output)
+	bool WaitForOverlapped(OVERLAPPED& overlapped, DWORD timeoutMs, DWORD& transferred)
+	{
+		if(WaitForSingleObject(g_pipeEvent, timeoutMs) != WAIT_OBJECT_0) {
+			CancelIoEx(g_pipe, &overlapped);
+			// Wait for the cancelled operation to finish so the OVERLAPPED
+			// structure is not written after it leaves scope.
+			WaitForSingleObject(g_pipeEvent, PipeCancelTimeoutMs);
+			GetOverlappedResult(g_pipe, &overlapped, &transferred, TRUE);
+			return false;
+		}
+		return GetOverlappedResult(g_pipe, &overlapped, &transferred, FALSE) != FALSE;
+	}
+
+	bool PipeWriteAll(const char* data, size_t length, DWORD timeoutMs)
+	{
+		while(length > 0) {
+			OVERLAPPED overlapped {};
+			overlapped.hEvent = g_pipeEvent;
+			ResetEvent(g_pipeEvent);
+
+			DWORD chunk = static_cast<DWORD>(std::min(length, static_cast<size_t>(64 * 1024)));
+			DWORD written = 0;
+			if(!WriteFile(g_pipe, data, chunk, &written, &overlapped)) {
+				if(GetLastError() != ERROR_IO_PENDING || !WaitForOverlapped(overlapped, timeoutMs, written)) {
+					return false;
+				}
+			}
+			if(written == 0) {
+				return false;
+			}
+
+			data += written;
+			length -= written;
+		}
+		return true;
+	}
+
+	bool PipeReadLine(std::string& output, DWORD timeoutMs)
 	{
 		output.clear();
-		char value = 0;
-		DWORD bytesRead = 0;
-		while(PipeIsOpen() && ReadFile(g_pipe, &value, 1, &bytesRead, nullptr) && bytesRead == 1) {
-			if(value == '\n') {
+		while(true) {
+			size_t newline = g_readBuffer.find('\n');
+			if(newline != std::string::npos) {
+				output = g_readBuffer.substr(0, newline);
+				g_readBuffer.erase(0, newline + 1);
+				if(!output.empty() && output.back() == '\r') {
+					output.pop_back();
+				}
 				return true;
 			}
-			if(value != '\r') {
-				output += value;
+			if(g_readBuffer.size() > MaxBodySize) {
+				return false;
 			}
+
+			OVERLAPPED overlapped {};
+			overlapped.hEvent = g_pipeEvent;
+			ResetEvent(g_pipeEvent);
+
+			char buffer[8192];
+			DWORD read = 0;
+			if(!ReadFile(g_pipe, buffer, static_cast<DWORD>(sizeof(buffer)), &read, &overlapped)) {
+				if(GetLastError() != ERROR_IO_PENDING || !WaitForOverlapped(overlapped, timeoutMs, read)) {
+					return false;
+				}
+			}
+			if(read == 0) {
+				return false;
+			}
+			g_readBuffer.append(buffer, read);
 		}
-		return false;
 	}
 
-	std::string PipeRequest(const std::string& json)
+	// Forwards one JSON-RPC message to Mesen. Never returns an empty string:
+	// "{}" means "do not answer the client".
+	std::string PipeRequest(const std::string& body)
 	{
+		std::string method = Unquote(ExtractValue(body, "method", 1));
+		bool notification = ExtractValue(body, "id", 1).empty();
+		std::string response;
+		bool connected = false;
+
 		EnterCriticalSection(&g_pipeLock);
 
-		for(int attempt = 0; attempt < 2; attempt++) {
-			if(!PipeIsOpen()) {
-				PipeConnect();
+		for(int attempt = 0; attempt < 2 && response.empty(); attempt++) {
+			if(!PipeIsOpen() && !PipeTryConnect(PipeConnectTimeoutMs)) {
+				break;
 			}
+			connected = true;
 
 			std::string message;
-			message.reserve(json.size() + 1);
-			for(char value : json) {
+			message.reserve(body.size() + 1);
+			for(char value : body) {
 				if(value != '\n' && value != '\r') {
 					message += value;
 				}
 			}
 			message += '\n';
 
-			DWORD bytesWritten = 0;
-			if(!WriteFile(g_pipe, message.data(), static_cast<DWORD>(message.size()), &bytesWritten, nullptr) ||
-				bytesWritten != static_cast<DWORD>(message.size())) {
+			if(!PipeWriteAll(message.data(), message.size(), PipeRequestTimeoutMs)) {
 				PipeClose();
 				continue;
 			}
 
-			std::string response;
-			if(PipeReadLine(response)) {
-				LeaveCriticalSection(&g_pipeLock);
-				return response;
+			// Mesen answers every message, including notifications ("{}"), so the
+			// reply is always consumed to keep the pipe in sync.
+			if(!PipeReadLine(response, PipeRequestTimeoutMs)) {
+				PipeClose();
+				response.clear();
+				continue;
 			}
-			PipeClose();
+		}
+
+		if(!response.empty() && method == "tools/list") {
+			std::string result = ExtractValue(response, "result", 1);
+			if(!result.empty()) {
+				SaveToolsCache(result);
+			}
 		}
 
 		LeaveCriticalSection(&g_pipeLock);
-		return R"({"jsonrpc":"2.0","id":0,"error":{"code":-32603,"message":"Mesen is not available"}})";
+
+		if(!response.empty()) {
+			return response;
+		}
+		if(notification) {
+			return "{}";
+		}
+		if(method == "initialize") {
+			fprintf(stderr, "[MCPServer] status=initialize-answered-locally\n");
+			return MakeLocalInitializeResponse(body);
+		}
+		if(method == "tools/list") {
+			std::string cached = LoadToolsCache();
+			if(!cached.empty()) {
+				fprintf(stderr, "[MCPServer] status=tools-list-from-cache\n");
+				return R"({"jsonrpc":"2.0","id":)" + GetRequestId(body) + R"(,"result":)" + cached + "}";
+			}
+		}
+		return MakeTransportError(body, connected
+			? "Mesen stopped responding. Check the MCP Server window in Mesen, then try again."
+			: "Mesen is not running. Open Mesen, load a ROM, then try again.");
 	}
 
 	bool ReadStdioMessage(std::string& output)
@@ -257,10 +548,9 @@ namespace
 		_setmode(_fileno(stdin), _O_BINARY);
 		_setmode(_fileno(stdout), _O_BINARY);
 
-		fprintf(stderr, "[MCPServer] Starting stdio transport.\n");
-		InitializeCriticalSection(&g_pipeLock);
-		PipeConnect();
-		fprintf(stderr, "[MCPServer] Connected to Mesen.\n");
+		// The pipe is opened on the first forwarded message instead of here, so a
+		// closed emulator cannot stall the MCP handshake.
+		fprintf(stderr, "[MCPServer] status=listening transport=stdio\n");
 
 		std::string request;
 		while(ReadStdioMessage(request)) {
@@ -271,7 +561,6 @@ namespace
 		}
 
 		PipeClose();
-		DeleteCriticalSection(&g_pipeLock);
 		return 0;
 	}
 
@@ -525,10 +814,66 @@ namespace
 		port = static_cast<int>(parsed);
 		return true;
 	}
+
+	int RunHttp()
+	{
+		WSADATA winsockData {};
+		int startupResult = WSAStartup(MAKEWORD(2, 2), &winsockData);
+		if(startupResult != 0) {
+			fprintf(stderr, "[MCPServer] status=failed reason=wsastartup-%d\n", startupResult);
+			return 1;
+		}
+
+		SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if(server == INVALID_SOCKET) {
+			fprintf(stderr, "[MCPServer] status=failed reason=socket-%d\n", WSAGetLastError());
+			WSACleanup();
+			return 1;
+		}
+
+		int reuseAddress = 1;
+		setsockopt(server, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseAddress), static_cast<int>(sizeof(reuseAddress)));
+
+		sockaddr_in address {};
+		address.sin_family = AF_INET;
+		address.sin_port = htons(static_cast<u_short>(g_port));
+		inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+
+		if(bind(server, reinterpret_cast<sockaddr*>(&address), static_cast<int>(sizeof(address))) == SOCKET_ERROR ||
+			listen(server, SOMAXCONN) == SOCKET_ERROR) {
+			fprintf(stderr, "[MCPServer] status=failed reason=listen-port-%d-error-%d\n", g_port, WSAGetLastError());
+			closesocket(server);
+			WSACleanup();
+			return 1;
+		}
+
+		// Mesen waits for this line before it reports the bridge as running. The
+		// pipe is connected lazily, so listening does not depend on the emulator.
+		fprintf(stderr, "[MCPServer] status=listening url=http://127.0.0.1:%d/mcp/\n", g_port);
+		fprintf(stderr, "[MCPServer] http: codex mcp add mesen-debugger --url http://127.0.0.1:%d/mcp/\n", g_port);
+		fprintf(stderr, "[MCPServer] stdio: codex mcp add mesen-debugger -- \"%s\" --stdio\n", GetExecutablePath().c_str());
+
+		while(true) {
+			SOCKET client = accept(server, nullptr, nullptr);
+			if(client == INVALID_SOCKET) {
+				break;
+			}
+			std::thread([client]() { HandleClient(client); }).detach();
+		}
+
+		closesocket(server);
+		PipeClose();
+		WSACleanup();
+		return 0;
+	}
 }
 
 int main(int argc, char* argv[])
 {
+	// stderr carries the bridge log. Keep it unbuffered so Mesen sees each line
+	// as it happens instead of only when the process exits.
+	setvbuf(stderr, nullptr, _IONBF, 0);
+
 	for(int index = 1; index < argc; index++) {
 		std::string argument = argv[index];
 		if(argument == "--stdio") {
@@ -539,89 +884,29 @@ int main(int argc, char* argv[])
 			printf("Usage: MCPServer.exe [port] [--parent-pid PID]\n       MCPServer.exe --stdio\n");
 			return 0;
 		} else if(!ParsePort(argv[index], g_port)) {
-			fprintf(stderr, "[MCPServer] Invalid port: %s\n", argv[index]);
+			fprintf(stderr, "[MCPServer] status=failed reason=invalid-port-%s\n", argv[index]);
 			return 1;
 		}
 	}
 
-	if(!AcquireSingletonMutex()) {
-		return 1;
-	}
 	if(!StartParentWatcher()) {
-		ReleaseSingletonMutex();
 		return 1;
 	}
 
-	if(g_stdioMode) {
-		int result = RunStdio();
+	g_pipeEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+	if(g_pipeEvent == nullptr) {
+		fprintf(stderr, "[MCPServer] status=failed reason=pipe-event\n");
 		StopParentWatcher();
-		ReleaseSingletonMutex();
-		return result;
-	}
-
-	printf("[MCPServer] Mesen debugger MCP bridge\n");
-	printf("[MCPServer] Connecting to Mesen on pipe %s...\n", PipeName);
-
-	WSADATA winsockData {};
-	int startupResult = WSAStartup(MAKEWORD(2, 2), &winsockData);
-	if(startupResult != 0) {
-		fprintf(stderr, "[MCPServer] WSAStartup failed: %d\n", startupResult);
-		StopParentWatcher();
-		ReleaseSingletonMutex();
 		return 1;
 	}
 	InitializeCriticalSection(&g_pipeLock);
-	PipeConnect();
-	printf("[MCPServer] Connected to Mesen.\n");
 
-	SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if(server == INVALID_SOCKET) {
-		fprintf(stderr, "[MCPServer] socket failed: %d\n", WSAGetLastError());
-		PipeClose();
-		DeleteCriticalSection(&g_pipeLock);
-		WSACleanup();
-		StopParentWatcher();
-		ReleaseSingletonMutex();
-		return 1;
-	}
+	fprintf(stderr, "[MCPServer] status=starting transport=%s\n", g_stdioMode ? "stdio" : "http");
+	int result = g_stdioMode ? RunStdio() : RunHttp();
 
-	int reuseAddress = 1;
-	setsockopt(server, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseAddress), static_cast<int>(sizeof(reuseAddress)));
-
-	sockaddr_in address {};
-	address.sin_family = AF_INET;
-	address.sin_port = htons(static_cast<u_short>(g_port));
-	inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
-
-	if(bind(server, reinterpret_cast<sockaddr*>(&address), static_cast<int>(sizeof(address))) == SOCKET_ERROR ||
-		listen(server, SOMAXCONN) == SOCKET_ERROR) {
-		fprintf(stderr, "[MCPServer] Could not listen on port %d: %d\n", g_port, WSAGetLastError());
-		closesocket(server);
-		PipeClose();
-		DeleteCriticalSection(&g_pipeLock);
-		WSACleanup();
-		StopParentWatcher();
-		ReleaseSingletonMutex();
-		return 1;
-	}
-
-	printf("[MCPServer] Listening on http://127.0.0.1:%d/mcp/\n", g_port);
-	printf("[MCPServer] HTTP: codex mcp add mesen-debugger --url http://127.0.0.1:%d/mcp/\n", g_port);
-	printf("[MCPServer] stdio: codex mcp add mesen-debugger -- \"%s\" --stdio\n", GetExecutablePath().c_str());
-
-	while(true) {
-		SOCKET client = accept(server, nullptr, nullptr);
-		if(client == INVALID_SOCKET) {
-			break;
-		}
-		std::thread([client]() { HandleClient(client); }).detach();
-	}
-
-	closesocket(server);
-	PipeClose();
 	DeleteCriticalSection(&g_pipeLock);
-	WSACleanup();
+	CloseHandle(g_pipeEvent);
+	g_pipeEvent = nullptr;
 	StopParentWatcher();
-	ReleaseSingletonMutex();
-	return 0;
+	return result;
 }

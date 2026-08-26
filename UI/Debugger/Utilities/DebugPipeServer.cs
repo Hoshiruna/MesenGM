@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -11,8 +12,9 @@ namespace Mesen.Debugger.Utilities
 		private const string PipeName = "MesenDebug";
 		private readonly object _lock = new();
 		private readonly McpDebugService _service = new();
+		private readonly List<NamedPipeServerStream> _connections = new();
 		private Thread? _thread;
-		private NamedPipeServerStream? _currentPipe;
+		private NamedPipeServerStream? _pendingPipe;
 		private volatile bool _running;
 
 		public void Start()
@@ -34,16 +36,26 @@ namespace Mesen.Debugger.Utilities
 		public void Stop()
 		{
 			Thread? thread;
+			NamedPipeServerStream[] connections;
 			lock(_lock) {
 				if(!_running) {
 					return;
 				}
 
 				_running = false;
-				_currentPipe?.Dispose();
-				_currentPipe = null;
+				_pendingPipe?.Dispose();
+				_pendingPipe = null;
+				connections = _connections.ToArray();
+				_connections.Clear();
 				thread = _thread;
 				_thread = null;
+			}
+
+			foreach(NamedPipeServerStream connection in connections) {
+				try {
+					connection.Dispose();
+				} catch(Exception) {
+				}
 			}
 
 			try {
@@ -62,10 +74,13 @@ namespace Mesen.Debugger.Utilities
 			while(_running) {
 				NamedPipeServerStream? pipe = null;
 				try {
+					// Several bridges can be connected at once (one HTTP bridge started
+					// from Mesen plus one stdio bridge per MCP client), so each client
+					// gets its own pipe instance and handler thread.
 					pipe = new NamedPipeServerStream(
 						PipeName,
 						PipeDirection.InOut,
-						1,
+						NamedPipeServerStream.MaxAllowedServerInstances,
 						PipeTransmissionMode.Byte,
 						PipeOptions.CurrentUserOnly,
 						65536,
@@ -76,29 +91,65 @@ namespace Mesen.Debugger.Utilities
 							pipe.Dispose();
 							return;
 						}
-						_currentPipe = pipe;
+						_pendingPipe = pipe;
 					}
 
 					pipe.WaitForConnection();
-					using StreamReader reader = new(pipe, new UTF8Encoding(false), false, 65536, true);
-					using StreamWriter writer = new(pipe, new UTF8Encoding(false), 65536, true) { AutoFlush = true };
 
-					string? line;
-					while(_running && (line = reader.ReadLine()) != null) {
-						writer.WriteLine(_service.HandleRequest(line));
+					NamedPipeServerStream connection = pipe;
+					pipe = null;
+					lock(_lock) {
+						_pendingPipe = null;
+						if(!_running) {
+							connection.Dispose();
+							return;
+						}
+						_connections.Add(connection);
 					}
+
+					new Thread(() => HandleConnection(connection)) {
+						IsBackground = true,
+						Name = nameof(DebugPipeServer) + "Client"
+					}.Start();
 				} catch(IOException) when(!_running) {
 				} catch(ObjectDisposedException) when(!_running) {
 				} catch(Exception ex) {
 					Console.Error.WriteLine($"[MCP] Named-pipe server error: {ex.Message}");
 					Thread.Sleep(100);
 				} finally {
-					lock(_lock) {
-						if(ReferenceEquals(_currentPipe, pipe)) {
-							_currentPipe = null;
+					if(pipe != null) {
+						lock(_lock) {
+							if(ReferenceEquals(_pendingPipe, pipe)) {
+								_pendingPipe = null;
+							}
 						}
+						pipe.Dispose();
 					}
-					pipe?.Dispose();
+				}
+			}
+		}
+
+		private void HandleConnection(NamedPipeServerStream pipe)
+		{
+			try {
+				using StreamReader reader = new(pipe, new UTF8Encoding(false), false, 65536, true);
+				using StreamWriter writer = new(pipe, new UTF8Encoding(false), 65536, true) { AutoFlush = true };
+
+				string? line;
+				while(_running && (line = reader.ReadLine()) != null) {
+					writer.WriteLine(_service.HandleRequest(line));
+				}
+			} catch(IOException) {
+			} catch(ObjectDisposedException) {
+			} catch(Exception ex) {
+				Console.Error.WriteLine($"[MCP] Named-pipe client error: {ex.Message}");
+			} finally {
+				lock(_lock) {
+					_connections.Remove(pipe);
+				}
+				try {
+					pipe.Dispose();
+				} catch(Exception) {
 				}
 			}
 		}

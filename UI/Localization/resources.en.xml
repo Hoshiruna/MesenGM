@@ -827,11 +827,16 @@
 			<Control ID="btnCopyUrl">Copy URL</Control>
 			<Control ID="lblUrl">URL:</Control>
 			<Control ID="lblStatus">Status:</Control>
-			<Control ID="statusRunning">HTTP bridge running at {0}</Control>
+			<Control ID="lblLog">Bridge log:</Control>
+			<Control ID="chkShowConsole">Show the MCPServer.exe console window (disables the log above)</Control>
+			<Control ID="statusStarting">HTTP bridge starting...</Control>
+			<Control ID="statusRunning">HTTP bridge running at {0}, connected to the debugger</Control>
+			<Control ID="statusRunningNoClient">HTTP bridge running at {0}, waiting for the first client request</Control>
 			<Control ID="statusStopped">HTTP bridge stopped</Control>
 			<Control ID="errorInvalidPort">Port must be between 1 and 65535.</Control>
 			<Control ID="btnStart">Start</Control>
 			<Control ID="btnStop">Stop</Control>
+			<Control ID="btnCopyLog">Copy Log</Control>
 			<Control ID="btnClose">Close</Control>
 		</Form>
 		<Form ID="CheatListWindow">

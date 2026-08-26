@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
 using Avalonia.Markup.Xaml;
@@ -5,6 +6,7 @@ using Mesen.Localization;
 using Mesen.Utilities;
 using Mesen.ViewModels;
 using System;
+using System.ComponentModel;
 
 namespace Mesen.Windows
 {
@@ -16,6 +18,14 @@ namespace Mesen.Windows
 		{
 			DataContext = new McpServerWindowViewModel();
 			AvaloniaXamlLoader.Load(this);
+			Model.PropertyChanged += Model_PropertyChanged;
+		}
+
+		private void Model_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if(e.PropertyName == nameof(McpServerWindowViewModel.Log)) {
+				this.FindControl<ScrollViewer>("_logScroll")?.ScrollToEnd();
+			}
 		}
 
 		private async void Start_OnClick(object? sender, RoutedEventArgs e)
@@ -37,6 +47,13 @@ namespace Mesen.Windows
 			}
 		}
 
+		private async void CopyLog_OnClick(object? sender, RoutedEventArgs e)
+		{
+			if(Clipboard != null) {
+				await Clipboard.SetTextAsync(Model.Log);
+			}
+		}
+
 		private void Close_OnClick(object? sender, RoutedEventArgs e)
 		{
 			Close();
@@ -44,6 +61,7 @@ namespace Mesen.Windows
 
 		protected override void OnClosed(EventArgs e)
 		{
+			Model.PropertyChanged -= Model_PropertyChanged;
 			Model.Dispose();
 			base.OnClosed(e);
 		}

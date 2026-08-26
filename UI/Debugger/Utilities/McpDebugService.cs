@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Mesen.Debugger.Utilities
 {
@@ -15,11 +17,19 @@ namespace Mesen.Debugger.Utilities
 		private const int MaxMemoryTransfer = 4096;
 		private const int MaxTraceRows = 1000;
 		private const int MaxBreakpoints = 1000;
+
+		// Debugger calls run on a worker so a request that blocks inside the
+		// emulator cannot wedge the connection for the rest of the session.
+		private const int ToolTimeoutMs = 10000;
+		private const int ToolQueueTimeoutMs = 15000;
+
 		private static readonly HashSet<string> _supportedProtocolVersions = new(StringComparer.Ordinal) {
 			"2024-11-05",
 			"2025-03-26",
 			LatestProtocolVersion
 		};
+
+		private readonly SemaphoreSlim _toolGate = new(1, 1);
 
 		public string HandleRequest(string body)
 		{
@@ -46,16 +56,46 @@ namespace Mesen.Debugger.Utilities
 			try {
 				string? method = request["method"]?.GetValue<string>();
 				JsonObject? parameters = request["params"] as JsonObject;
+
+				// initialize, ping, and tools/list never touch the debugger, so they
+				// stay outside the gate and always answer immediately.
 				return method switch {
 					"initialize" => HandleInitialize(id, parameters),
 					"ping" => MakeJsonRpcResult(id, new JsonObject()),
 					"tools/list" => HandleToolsList(id),
-					"tools/call" => HandleToolsCall(id, parameters),
+					"tools/call" => RunToolCall(id, parameters),
 					_ => MakeJsonRpcError(id, -32601, $"Unknown method: {method}")
 				};
 			} catch(Exception ex) {
 				return MakeJsonRpcError(id, -32603, $"Internal error: {ex.Message}");
 			}
+		}
+
+		// Runs one tool call with a timeout. Concurrent bridges are serialized here
+		// because Mesen's debugger state is global.
+		private string RunToolCall(JsonNode id, JsonObject? parameters)
+		{
+			if(!_toolGate.Wait(ToolQueueTimeoutMs)) {
+				return MakeJsonRpcError(id, -32603, "Another debugger tool call is still running. Try again in a moment.");
+			}
+
+			// The worker gets its own copy of the id because a JsonNode cannot be
+			// attached to two response objects.
+			JsonNode workerId = id.DeepClone();
+			Task<string> call = Task.Run(() => HandleToolsCall(workerId, parameters));
+			if(call.Wait(ToolTimeoutMs)) {
+				_toolGate.Release();
+				try {
+					return call.Result;
+				} catch(Exception ex) {
+					return MakeJsonRpcError(id, -32603, $"Internal error: {ex.Message}");
+				}
+			}
+
+			// The call is stuck inside the emulator. Hold the gate until it finishes
+			// so later requests fail fast instead of piling up behind it.
+			call.ContinueWith(_ => _toolGate.Release(), TaskScheduler.Default);
+			return MakeJsonRpcError(id, -32603, $"Mesen did not answer within {ToolTimeoutMs / 1000} seconds. The emulator may be paused in the debugger or busy; check Mesen, then try again.");
 		}
 
 		private static string HandleInitialize(JsonNode id, JsonObject? parameters)
@@ -70,7 +110,7 @@ namespace Mesen.Debugger.Utilities
 				},
 				["serverInfo"] = new JsonObject {
 					["name"] = ServerName,
-					["version"] = "1.1.0"
+					["version"] = "1.2.0"
 				},
 				["instructions"] = "Use get_rom_info first to discover the loaded system, CPU type identifiers, and memory region identifiers."
 			});

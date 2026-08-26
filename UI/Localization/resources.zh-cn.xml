@@ -203,11 +203,16 @@
 			<Control ID="btnCopyUrl">复制 URL</Control>
 			<Control ID="lblUrl">URL：</Control>
 			<Control ID="lblStatus">状态：</Control>
-			<Control ID="statusRunning">HTTP 桥接正在运行：{0}</Control>
+			<Control ID="lblLog">桥接日志：</Control>
+			<Control ID="chkShowConsole">显示 MCPServer.exe 控制台窗口（将禁用上方日志）</Control>
+			<Control ID="statusStarting">HTTP 桥接正在启动……</Control>
+			<Control ID="statusRunning">HTTP 桥接正在运行：{0}，已连接到调试器</Control>
+			<Control ID="statusRunningNoClient">HTTP 桥接正在运行：{0}，等待客户端的第一个请求</Control>
 			<Control ID="statusStopped">HTTP 桥接已停止</Control>
 			<Control ID="errorInvalidPort">端口必须介于 1 和 65535 之间。</Control>
 			<Control ID="btnStart">启动</Control>
 			<Control ID="btnStop">停止</Control>
+			<Control ID="btnCopyLog">复制日志</Control>
 			<Control ID="btnClose">关闭</Control>
 		</Form>
 	</Forms>

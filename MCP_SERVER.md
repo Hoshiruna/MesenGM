@@ -5,11 +5,11 @@ MesenGM can expose its debugger to local Model Context Protocol clients. The fea
 - Mesen owns the debugger service and a local named pipe.
 - `MCPServer.exe` connects that pipe to either stdio or Streamable HTTP.
 
-The bridge is available on Windows builds. Mesen must stay open while a client is connected.
+The bridge is available on Windows builds. Several bridges can be connected at the same time, and a bridge stays usable across a whole client conversation even if Mesen is closed and reopened in the middle of it.
 
 ## Connect through stdio
 
-Use stdio when the MCP client launches its own server process. The bridge waits for Mesen if the emulator has not opened yet.
+Use stdio when the MCP client launches its own server process. The bridge starts immediately and answers `initialize` and `tools/list` on its own, so the client can finish its handshake before Mesen is open. Tool calls need a running Mesen and report a clear error until one is available.
 
 For Codex CLI:
 
@@ -28,7 +28,7 @@ $claudeConfig = @{
 claude mcp add-json mesen-debugger ($claudeConfig | ConvertTo-Json -Compress)
 ```
 
-Replace `C:\path\to\MCPServer.exe` with the full path to the `MCPServer.exe` next to `Mesen.exe`. Only one bridge process can connect at a time, so stop the HTTP bridge in Mesen before starting a stdio client.
+Replace `C:\path\to\MCPServer.exe` with the full path to the `MCPServer.exe` next to `Mesen.exe`. The stdio bridge can run alongside the HTTP bridge and alongside other stdio clients.
 
 ## Connect through HTTP
 
@@ -50,7 +50,9 @@ For Claude Code:
 claude mcp add --transport http mesen-debugger http://127.0.0.1:51234/mcp/
 ```
 
-The endpoint listens only on the IPv4 loopback address. Stopping the HTTP bridge does not stop Mesen's debugger pipe, so a stdio client can connect afterward.
+The endpoint listens only on the IPv4 loopback address. Stopping the HTTP bridge does not stop Mesen's debugger pipe.
+
+The **MCP Server** window shows the bridge's own status and log output, so a failed start is visible without a console window. **Show console window instead of log** launches the bridge in a separate console; the in-app log stays empty in that mode because the output goes to the console.
 
 ## Tools
 
@@ -88,7 +90,7 @@ An authorized client can read ROM state, change memory, replace breakpoints, and
 
 ## Troubleshooting
 
-- If `MCPServer.exe` waits for Mesen, open Mesen and try the request again.
-- If a bridge exits immediately, close the other stdio or HTTP bridge process first.
-- If HTTP startup fails, choose an unused port in **Debug > MCP Server**.
+- If tool calls report that Mesen is not running, open Mesen and try the request again. The client does not need to restart the bridge.
+- If a tool call reports that Mesen did not answer in time, Mesen is paused in its own debugger or busy. Tool calls time out after 10 seconds so the client stays usable.
+- If HTTP startup fails, choose an unused port in **Debug > MCP Server**. The log panel in that window shows why the bridge stopped.
 - If debugger tools report that no ROM is loaded, load a game before calling them.
