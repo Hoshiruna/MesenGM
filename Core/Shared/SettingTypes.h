@@ -182,6 +182,7 @@ enum class ControllerType
 	SuperScope,
 	Multitap,
 	SnesRumbleController,
+	SnesBlueRetroController,
 	SnesNttDataKeypad,
 	AsciiTurboFileTwinTf2,
 	AsciiTurboFileTwinStf,
@@ -431,10 +432,13 @@ struct GameboyConfig
 
 	bool DisableBackground = false;
 	bool DisableSprites = false;
+	bool RemoveSpriteLimit = false;
 	bool HideSgbBorders = false;
 
 	RamState RamPowerOnState = RamState::Random;
 	bool AllowInvalidInput = false;
+
+	uint32_t OverclockScanlineCount = 0;
 
 	uint32_t BgColors[4] = { 0xFFFFFF, 0xB0B0B0, 0x686868, 0x000000 };
 	uint32_t Obj0Colors[4] = { 0xFFFFFF, 0xB0B0B0, 0x686868, 0x000000 };
@@ -564,6 +568,21 @@ enum class SnesHighResBlendMode
 	BlendEvenOdd
 };
 
+enum class SnesColorCorrectionMode
+{
+	None,
+	NtscBlackLevel,
+	DeepBlackBoost
+};
+
+enum class SnesDeinterlaceMode
+{
+	Weave,
+	BobBlend,
+	Bob,
+	CurrentField
+};
+
 struct SnesConfig
 {
 	ControllerConfig Port1;
@@ -575,7 +594,9 @@ struct SnesConfig
 	ConsoleRegion Region = ConsoleRegion::Auto;
 
 	bool AllowInvalidInput = false;
+	SnesColorCorrectionMode ColorCorrection = SnesColorCorrectionMode::None;
 	SnesHighResBlendMode HighResBlendMode = SnesHighResBlendMode::None;
+	SnesDeinterlaceMode DeinterlaceMode = SnesDeinterlaceMode::Weave;
 	bool HideBgLayer1 = false;
 	bool HideBgLayer2 = false;
 	bool HideBgLayer3 = false;
@@ -583,6 +604,7 @@ struct SnesConfig
 	bool HideSprites = false;
 	bool DisableFrameSkipping = false;
 	bool ForceFixedResolution = false;
+	bool RemoveSpriteLimit = false;
 
 	OverscanDimensions Overscan = {};
 

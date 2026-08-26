@@ -25,7 +25,6 @@
 #include "Shared/BatteryManager.h"
 #include "Shared/MessageManager.h"
 #include "Shared/Emulator.h"
-#include "Shared/RomInfo.h"
 #include "Utilities/HexUtilities.h"
 #include "Utilities/VirtualFile.h"
 #include "Utilities/FolderUtilities.h"
@@ -228,6 +227,11 @@ void BaseCartridge::LoadRom()
 	_flags = (CartFlags::CartFlags)flags;
 
 	_hasBattery = (_cartInfo.RomType & 0x0F) == 0x02 || (_cartInfo.RomType & 0x0F) == 0x05 || (_cartInfo.RomType & 0x0F) == 0x06 || (_cartInfo.RomType & 0x0F) == 0x09 || (_cartInfo.RomType & 0x0F) == 0x0A;
+
+	//Allow FX3 with battery
+	if(_cartInfo.RomType == Gsu::Fx3BatteryRomType) {
+		_hasBattery = true;
+	}
 
 	if(corruptedHeader) {
 		_coprocessorType = CoprocessorType::None;
@@ -534,7 +538,7 @@ void BaseCartridge::InitCoprocessor()
 		_sa1 = dynamic_cast<Sa1*>(_coprocessor.get());
 		_needCoprocSync = true;
 	} else if(_coprocessorType == CoprocessorType::GSU) {
-		_coprocessor.reset(new Gsu(_console, _coprocessorRamSize));
+		_coprocessor.reset(new Gsu(_console, _coprocessorRamSize, (_cartInfo.RomType == Gsu::Fx3RomType || _cartInfo.RomType == Gsu::Fx3BatteryRomType)));
 		_gsu = dynamic_cast<Gsu*>(_coprocessor.get());
 		_needCoprocSync = true;
 	} else if(_coprocessorType == CoprocessorType::SDD1) {
@@ -823,7 +827,15 @@ void BaseCartridge::DisplayCartInfo(bool showCorruptedHeaderWarning)
 			case CoprocessorType::DSP2: coProcMessage += "DSP2"; break;
 			case CoprocessorType::DSP3: coProcMessage += "DSP3"; break;
 			case CoprocessorType::DSP4: coProcMessage += "DSP4"; break;
-			case CoprocessorType::GSU: coProcMessage += "Super FX (GSU1/2)"; break;
+
+			case CoprocessorType::GSU:
+				if(_cartInfo.RomType == Gsu::Fx3RomType || _cartInfo.RomType == Gsu::Fx3BatteryRomType) {
+					coProcMessage += "Super FX (FX3)";
+				} else {
+					coProcMessage += "Super FX (GSU1/2)";
+				}
+				break;
+
 			case CoprocessorType::OBC1: coProcMessage += "OBC1"; break;
 			case CoprocessorType::RTC: coProcMessage += "RTC"; break;
 			case CoprocessorType::SA1: coProcMessage += "SA1"; break;

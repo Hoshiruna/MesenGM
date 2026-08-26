@@ -48,7 +48,7 @@ private:
 	uint8_t _spriteIndexes[32] = {};
 	uint8_t _spriteCount = 0;
 	uint8_t _spriteTileCount = 0;
-	bool _hasSpritePriority[4] = {};
+	uint8_t _orgSpriteCount = 0;
 
 	uint16_t _scanline = 0;
 	uint32_t _frameCount = 0;
@@ -124,6 +124,7 @@ private:
 	int32_t _debugMode7EndY = 0;
 
 	bool _needFullFrame = false;
+	bool _isRunAheadFrame = false;
 
 	void RenderSprites(const uint8_t priorities[4]);
 
@@ -211,6 +212,7 @@ private:
 	__forceinline void FetchSpritePosition(uint8_t oamAddress);
 	void FetchSpriteAttributes(uint16_t oamAddress);
 	void FetchSpriteTile(bool secondCycle);
+	void LoadExtraSprites();
 
 	void UpdateOamAddress();
 	uint16_t GetOamAddress();
@@ -257,6 +259,7 @@ public:
 	uint8_t* GetSpriteRam();
 
 	void DebugSendFrame();
+	void ProcessRunAheadFrameStart();
 
 	void SetLocationLatchRequest(uint16_t x, uint16_t y);
 	void ProcessLocationLatchRequest();

@@ -29,7 +29,6 @@
 #include "Utilities/HexUtilities.h"
 #include "Utilities/FolderUtilities.h"
 #include "Utilities/magic_enum.hpp"
-#include "Shared/MemoryOperationType.h"
 
 #ifdef _MSC_VER
 	//TODO MSVC seems to trigger this by mistake because of the macros?
@@ -113,6 +112,7 @@ int LuaApi::GetLibrary(lua_State* lua)
 		{ "drawString", LuaApi::DrawString },
 
 		{ "drawPixel", LuaApi::DrawPixel },
+		{ "drawPixels", LuaApi::DrawPixels },
 		{ "drawLine", LuaApi::DrawLine },
 		{ "drawRectangle", LuaApi::DrawRectangle },
 		{ "clearScreen", LuaApi::ClearScreen },
@@ -138,6 +138,7 @@ int LuaApi::GetLibrary(lua_State* lua)
 		{ "takeScreenshot", LuaApi::TakeScreenshot },
 
 		{ "isKeyPressed", LuaApi::IsKeyPressed },
+		{ "getPressedKeys", LuaApi::GetPressedKeys },
 		{ "getInput", LuaApi::GetInput },
 		{ "setInput", LuaApi::SetInput },
 
@@ -208,6 +209,51 @@ void LuaApi::GenerateEnumDefinition(lua_State* lua, string enumName, unordered_s
 		}
 	}
 	lua_settable(lua, -3);
+}
+
+string LuaApi::SerializeTable(lua_State* lua)
+{
+	string result = "{ ";
+	bool firstKey = true;
+	lua_pushnil(lua);
+	while(lua_next(lua, -2) != 0) {
+		int keyType = lua_type(lua, -2);
+		if(keyType == LUA_TSTRING || keyType == LUA_TNUMBER) {
+			if(!firstKey) {
+				result += ", ";
+			}
+			firstKey = false;
+			if(keyType == LUA_TSTRING) {
+				size_t len = 0;
+				const char* cstr = lua_tolstring(lua, -2, &len);
+				result += string(cstr, len);
+			} else {
+				if(lua_isinteger(lua, -2)) {
+					lua_Integer integer = lua_tointeger(lua, -2);
+					result += std::to_string(integer);
+				} else {
+					lua_Number number = lua_tonumber(lua, -2);
+					result += std::to_string(number);
+				}
+			}
+			result += " = ";
+
+			if(lua_type(lua, -1) == LUA_TSTRING) {
+				result += "\"";
+				result += lua_tostring(lua, -1);
+				result += "\"";
+			} else if(lua_istable(lua, -1)) {
+				result += SerializeTable(lua);
+			} else {
+				luaL_tolstring(lua, -1, nullptr);
+				result += lua_tostring(lua, -1);
+				lua_pop(lua, 1);
+			}
+		}
+		lua_pop(lua, 1);
+	}
+	result = StringUtilities::Trim(result);
+	return result + (result.size() > 1 ? " }" : "}");
 }
 
 DebugHud* LuaApi::GetHud()
@@ -559,6 +605,39 @@ int LuaApi::DrawPixel(lua_State* lua)
 	return l.ReturnCount();
 }
 
+int LuaApi::DrawPixels(lua_State* lua)
+{
+	LuaCallHelper l(lua);
+	l.ForceParamCount(7);
+	int displayDelay = l.ReadInteger(0);
+	int frameCount = l.ReadInteger(1);
+	l.SkipParam();
+	int x = l.ReadIntegerFromIndex(1);
+	int y = l.ReadIntegerFromIndex(2);
+	int width = l.ReadIntegerFromIndex(3);
+	int height = l.ReadIntegerFromIndex(4);
+	checkminparams(5);
+
+	luaL_checktype(lua, -1, LUA_TTABLE);
+
+	uint32_t* data = new uint32_t[width * height];
+	std::fill(data, data + width * height, 0xFF000000);
+
+	for(int i = 0, len = width * height; i < len; i++) {
+		if(lua_rawgeti(lua, -1, i + 1) != LUA_TNIL) {
+			data[i] = (uint32_t)lua_tointeger(lua, -1);
+		}
+		lua_pop(lua, 1);
+	}
+
+	lua_pop(lua, 5);
+
+	int startFrame = _emu->GetFrameCount() + displayDelay;
+	GetHud()->DrawPixels(data, x, y, width, height, frameCount, startFrame);
+
+	return l.ReturnCount();
+}
+
 int LuaApi::DrawRectangle(lua_State* lua)
 {
 	LuaCallHelper l(lua);
@@ -730,8 +809,18 @@ int LuaApi::GetMouseState(lua_State* lua)
 int LuaApi::Log(lua_State* lua)
 {
 	LuaCallHelper l(lua);
-	string text = l.ReadString();
-	checkparams();
+	l.CheckSpecificParamCount(1);
+
+	string text;
+	if(lua_type(lua, -1) == LUA_TSTRING) {
+		text = lua_tostring(lua, -1);
+	} else if(lua_istable(lua, -1)) {
+		text = LuaApi::SerializeTable(lua);
+	} else {
+		luaL_tolstring(lua, -1, nullptr);
+		text = lua_tostring(lua, -1);
+		lua_pop(lua, 1);
+	}
 	_context->Log(text);
 	return l.ReturnCount();
 }
@@ -833,6 +922,26 @@ int LuaApi::IsKeyPressed(lua_State* lua)
 	return l.ReturnCount();
 }
 
+int LuaApi::GetPressedKeys(lua_State* lua)
+{
+	LuaCallHelper l(lua);
+	checkparams();
+
+	vector<uint16_t> pressedKeys = KeyManager::GetPressedKeys();
+	int size = (int)pressedKeys.size();
+
+	lua_createtable(lua, size, 0);
+	for(size_t i = 0; i < size; i++) {
+		string name = KeyManager::GetKeyName(pressedKeys[i]);
+		if(name.size() > 0) {
+			lua_pushlstring(lua, name.c_str(), name.size());
+			lua_rawseti(lua, -2, i + 1);
+		}
+	}
+
+	return 1;
+}
+
 int LuaApi::GetInput(lua_State* lua)
 {
 	LuaCallHelper l(lua);
@@ -926,8 +1035,7 @@ int LuaApi::GetAccessCounters(lua_State* lua)
 	checkparams();
 
 	uint32_t size = _memoryDumper->GetMemorySize(memoryType);
-	vector<AddressCounters> counts;
-	counts.resize(size, {});
+	vector<AddressCounters> counts(size);
 	_debugger->GetMemoryAccessCounter()->GetAccessCounts(0, size, memoryType, counts.data());
 
 	auto getValue = [&](AddressCounters& counter) -> uint64_t {
@@ -971,8 +1079,7 @@ int LuaApi::GetCdlData(lua_State* lua)
 	}
 
 	uint32_t size = _memoryDumper->GetMemorySize(memoryType);
-	vector<uint8_t> cdlData;
-	cdlData.resize(size, {});
+	vector<uint8_t> cdlData(size);
 	_debugger->GetCdlManager()->GetCdlData(0, size, memoryType, cdlData.data());
 
 	lua_newtable(lua);
@@ -1088,9 +1195,11 @@ int LuaApi::GetState(lua_State* lua)
 	uint32_t frameCount = _emu->GetFrameCount();
 	uint32_t masterClock = _emu->GetMasterClock();
 	uint32_t clockRate = _emu->GetMasterClockRate();
+	double fps = _emu->GetConsole()->GetFps();
 	string consoleType = string(magic_enum::enum_name<ConsoleType>(_emu->GetConsoleType()));
 	string region = string(magic_enum::enum_name<ConsoleRegion>(_emu->GetRegion()));
 
+	SV(fps);
 	SV(clockRate);
 	SV(consoleType);
 	SV(region);

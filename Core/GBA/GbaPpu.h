@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "GBA/GbaTypes.h"
 #include "Shared/Emulator.h"
+#include "Shared/EventType.h"
 #include "Utilities/Timer.h"
 #include "Utilities/ISerializable.h"
 
@@ -248,6 +249,24 @@ public:
 			}
 		}
 
+		_emu->ProcessPpuCycle<CpuType::Gba>();
+	}
+
+	__forceinline void ExecSleep()
+	{
+		_state.Cycle++;
+		if(_state.Cycle == 308 * 4) {
+			_state.Cycle = 0;
+			_state.Scanline++;
+			if(_state.Scanline == 160) {
+				//Show white screen while in sleep mode
+				std::fill(_currentBuffer, _currentBuffer + GbaConstants::PixelCount, 0x7FFF);
+				SendFrame();
+			} else if(_state.Scanline > 227) {
+				_state.Scanline = 0;
+				_emu->ProcessEvent(EventType::StartFrame, CpuType::Gba);
+			}
+		}
 		_emu->ProcessPpuCycle<CpuType::Gba>();
 	}
 

@@ -21,6 +21,8 @@ public:
 
 	static void LuaPushIntValue(lua_State* lua, string name, int value);
 
+	static string SerializeTable(lua_State* lua);
+
 	static DebugHud* GetHud();
 
 	static int SelectDrawSurface(lua_State* lua);
@@ -47,6 +49,7 @@ public:
 
 	static int DrawLine(lua_State* lua);
 	static int DrawPixel(lua_State* lua);
+	static int DrawPixels(lua_State* lua);
 	static int DrawRectangle(lua_State* lua);
 	static int ClearScreen(lua_State* lua);
 
@@ -74,6 +77,7 @@ public:
 	static int LoadSavestate(lua_State* lua);
 
 	static int IsKeyPressed(lua_State* lua);
+	static int GetPressedKeys(lua_State* lua);
 
 	static int GetInput(lua_State* lua);
 	static int SetInput(lua_State* lua);
