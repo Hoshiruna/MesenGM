@@ -48,12 +48,14 @@ namespace
 	constexpr DWORD PipeConnectTimeoutMs = 3000;
 	constexpr DWORD PipeRequestTimeoutMs = 20000;
 	constexpr DWORD PipeCancelTimeoutMs = 2000;
+	constexpr DWORD ParentProcessPollIntervalMs = 1000;
 
 	int g_port = 51234;
 	bool g_stdioMode = false;
 	DWORD g_parentPid = 0;
 	HANDLE g_parentProcess = nullptr;
 	HANDLE g_parentWatcherThread = nullptr;
+	HANDLE g_parentWatcherStopEvent = nullptr;
 	HANDLE g_pipe = INVALID_HANDLE_VALUE;
 	HANDLE g_pipeEvent = nullptr;
 	CRITICAL_SECTION g_pipeLock;
@@ -92,20 +94,79 @@ namespace
 		return std::string(path, length);
 	}
 
-	DWORD WINAPI ParentWatcherThreadProc(LPVOID)
+	std::string EscapePowerShellSingleQuotedString(const std::string& value)
 	{
-		if(g_parentProcess != nullptr) {
-			WaitForSingleObject(g_parentProcess, INFINITE);
+		std::string escaped;
+		escaped.reserve(value.size());
+		for(char character : value) {
+			escaped += character;
+			if(character == '\'') {
+				escaped += '\'';
+			}
+		}
+		return escaped;
+	}
+
+	void LogClientSetupCommands()
+	{
+		std::string executablePath = GetExecutablePath();
+		std::string powerShellPath = EscapePowerShellSingleQuotedString(executablePath);
+		fprintf(stderr, "[MCPServer] codex http: codex mcp add mesen-debugger --url http://127.0.0.1:%d/mcp/\n", g_port);
+		fprintf(stderr, "[MCPServer] codex stdio: codex mcp add mesen-debugger -- \"%s\" --stdio\n", executablePath.c_str());
+		fprintf(stderr, "[MCPServer] claude http: claude mcp add --transport http mesen-debugger http://127.0.0.1:%d/mcp/\n", g_port);
+		fprintf(stderr,
+			"[MCPServer] claude stdio (PowerShell): $claudeConfig = @{ type = 'stdio'; command = '%s'; args = @('--stdio') }; "
+			"claude mcp add-json mesen-debugger ($claudeConfig | ConvertTo-Json -Compress)\n",
+			powerShellPath.c_str());
+	}
+
+	DWORD TerminateForParentExit(const char* reason)
+	{
+		fprintf(stderr, "[MCPServer] status=parent-exited parent-pid=%lu reason=%s\n", static_cast<unsigned long>(g_parentPid), reason);
+		if(!TerminateProcess(GetCurrentProcess(), 0)) {
 			ExitProcess(0);
 		}
 		return 0;
 	}
 
+	DWORD WINAPI ParentWatcherThreadProc(LPVOID)
+	{
+		HANDLE handles[] = { g_parentProcess, g_parentWatcherStopEvent };
+		while(true) {
+			DWORD waitResult = WaitForMultipleObjects(2, handles, FALSE, ParentProcessPollIntervalMs);
+			if(waitResult == WAIT_OBJECT_0) {
+				return TerminateForParentExit("process-signaled");
+			}
+			if(waitResult == WAIT_OBJECT_0 + 1) {
+				return 0;
+			}
+			if(waitResult != WAIT_TIMEOUT) {
+				return TerminateForParentExit("wait-failed");
+			}
+
+			DWORD exitCode = 0;
+			if(!GetExitCodeProcess(g_parentProcess, &exitCode)) {
+				return TerminateForParentExit("status-check-failed");
+			}
+			if(exitCode != STILL_ACTIVE) {
+				return TerminateForParentExit("process-not-active");
+			}
+		}
+	}
+
 	void StopParentWatcher()
 	{
+		if(g_parentWatcherStopEvent != nullptr) {
+			SetEvent(g_parentWatcherStopEvent);
+		}
 		if(g_parentWatcherThread != nullptr) {
+			WaitForSingleObject(g_parentWatcherThread, INFINITE);
 			CloseHandle(g_parentWatcherThread);
 			g_parentWatcherThread = nullptr;
+		}
+		if(g_parentWatcherStopEvent != nullptr) {
+			CloseHandle(g_parentWatcherStopEvent);
+			g_parentWatcherStopEvent = nullptr;
 		}
 		if(g_parentProcess != nullptr) {
 			CloseHandle(g_parentProcess);
@@ -119,9 +180,16 @@ namespace
 			return true;
 		}
 
-		g_parentProcess = OpenProcess(SYNCHRONIZE, FALSE, g_parentPid);
+		g_parentProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, g_parentPid);
 		if(g_parentProcess == nullptr) {
 			fprintf(stderr, "[MCPServer] status=failed reason=parent-process-%lu-not-found\n", static_cast<unsigned long>(g_parentPid));
+			return false;
+		}
+
+		g_parentWatcherStopEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+		if(g_parentWatcherStopEvent == nullptr) {
+			fprintf(stderr, "[MCPServer] status=failed reason=parent-watcher-stop-event\n");
+			StopParentWatcher();
 			return false;
 		}
 
@@ -131,6 +199,7 @@ namespace
 			StopParentWatcher();
 			return false;
 		}
+		fprintf(stderr, "[MCPServer] status=parent-watcher-active parent-pid=%lu\n", static_cast<unsigned long>(g_parentPid));
 		return true;
 	}
 
@@ -244,6 +313,30 @@ namespace
 			return value.substr(1, value.size() - 2);
 		}
 		return value;
+	}
+
+	std::string SanitizeLogValue(const std::string& value)
+	{
+		constexpr size_t MaxLogValueLength = 80;
+		std::string sanitized;
+		sanitized.reserve(std::min(value.size(), MaxLogValueLength));
+		for(unsigned char character : value) {
+			if(sanitized.size() >= MaxLogValueLength) {
+				break;
+			}
+			if(std::isalnum(character) || character == '/' || character == '_' || character == '-' || character == '.') {
+				sanitized += static_cast<char>(character);
+			} else {
+				sanitized += '_';
+			}
+		}
+		return sanitized.empty() ? "unknown" : sanitized;
+	}
+
+	void LogRequestResult(const char* status, const char* transport, const std::string& method, const char* target)
+	{
+		std::string safeMethod = SanitizeLogValue(method);
+		fprintf(stderr, "[MCPServer] status=%s transport=%s method=%s target=%s\n", status, transport, safeMethod.c_str(), target);
 	}
 
 	std::string GetRequestId(const std::string& body)
@@ -455,7 +548,7 @@ namespace
 
 	// Forwards one JSON-RPC message to Mesen. Never returns an empty string:
 	// "{}" means "do not answer the client".
-	std::string PipeRequest(const std::string& body)
+	std::string PipeRequest(const std::string& body, const char* transport)
 	{
 		std::string method = Unquote(ExtractValue(body, "method", 1));
 		bool notification = ExtractValue(body, "id", 1).empty();
@@ -503,25 +596,28 @@ namespace
 		LeaveCriticalSection(&g_pipeLock);
 
 		if(!response.empty()) {
+			LogRequestResult("request-complete", transport, method, "mesen");
 			return response;
 		}
 		if(notification) {
+			LogRequestResult("request-failed", transport, method, "unavailable");
 			return "{}";
 		}
 		if(method == "initialize") {
 			fprintf(stderr, "[MCPServer] status=initialize-answered-locally\n");
+			LogRequestResult("request-complete", transport, method, "bridge");
 			return MakeLocalInitializeResponse(body);
 		}
 		if(method == "tools/list") {
 			std::string cached = LoadToolsCache();
 			if(!cached.empty()) {
 				fprintf(stderr, "[MCPServer] status=tools-list-from-cache\n");
+				LogRequestResult("request-complete", transport, method, "cache");
 				return R"({"jsonrpc":"2.0","id":)" + GetRequestId(body) + R"(,"result":)" + cached + "}";
 			}
 		}
-		return MakeTransportError(body, connected
-			? "Mesen stopped responding. Check the MCP Server window in Mesen, then try again."
-			: "Mesen is not running. Open Mesen, load a ROM, then try again.");
+		LogRequestResult("request-failed", transport, method, "unavailable");
+		return MakeTransportError(body, connected ? "Mesen stopped responding. Check the MCP Server window in Mesen, then try again." : "Mesen is not running. Open Mesen, load a ROM, then try again.");
 	}
 
 	bool ReadStdioMessage(std::string& output)
@@ -554,7 +650,7 @@ namespace
 
 		std::string request;
 		while(ReadStdioMessage(request)) {
-			std::string response = PipeRequest(request);
+			std::string response = PipeRequest(request, "stdio");
 			if(response != "{}") {
 				WriteStdioMessage(response);
 			}
@@ -793,7 +889,7 @@ namespace
 		} else if(request.body.empty()) {
 			SendHttp(client, 400, R"({"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Empty request body"}})", origin);
 		} else {
-			std::string response = PipeRequest(request.body);
+			std::string response = PipeRequest(request.body, "http");
 			if(response == "{}") {
 				SendHttp(client, 202, "", origin);
 			} else {
@@ -850,8 +946,7 @@ namespace
 		// Mesen waits for this line before it reports the bridge as running. The
 		// pipe is connected lazily, so listening does not depend on the emulator.
 		fprintf(stderr, "[MCPServer] status=listening url=http://127.0.0.1:%d/mcp/\n", g_port);
-		fprintf(stderr, "[MCPServer] http: codex mcp add mesen-debugger --url http://127.0.0.1:%d/mcp/\n", g_port);
-		fprintf(stderr, "[MCPServer] stdio: codex mcp add mesen-debugger -- \"%s\" --stdio\n", GetExecutablePath().c_str());
+		LogClientSetupCommands();
 
 		while(true) {
 			SOCKET client = accept(server, nullptr, nullptr);

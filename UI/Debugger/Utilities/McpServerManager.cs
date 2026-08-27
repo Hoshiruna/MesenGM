@@ -81,7 +81,10 @@ namespace Mesen.Debugger.Utilities
 			}
 
 			lock(_lock) {
-				_debugPipeServer ??= new DebugPipeServer();
+				if(_debugPipeServer == null) {
+					_debugPipeServer = new DebugPipeServer();
+					_debugPipeServer.LogReceived += DebugPipeServer_LogReceived;
+				}
 				_debugPipeServer.Start();
 			}
 		}
@@ -227,9 +230,14 @@ namespace Mesen.Debugger.Utilities
 		public static void Shutdown()
 		{
 			Stop();
+			DebugPipeServer? debugPipeServer;
 			lock(_lock) {
-				_debugPipeServer?.Dispose();
+				debugPipeServer = _debugPipeServer;
 				_debugPipeServer = null;
+			}
+			if(debugPipeServer != null) {
+				debugPipeServer.LogReceived -= DebugPipeServer_LogReceived;
+				debugPipeServer.Dispose();
 			}
 		}
 
@@ -252,7 +260,24 @@ namespace Mesen.Debugger.Utilities
 
 		private static void ServerProcess_OutputDataReceived(object? sender, DataReceivedEventArgs e)
 		{
+			// Mesen logs forwarded requests after handling them. Do not repeat the
+			// less detailed completion line emitted by the HTTP bridge.
+			if(IsForwardedRequestLog(e.Data)) {
+				return;
+			}
 			AppendLog(e.Data);
+		}
+
+		private static void DebugPipeServer_LogReceived(object? sender, string line)
+		{
+			AppendLog(line);
+		}
+
+		private static bool IsForwardedRequestLog(string? line)
+		{
+			return line != null
+				&& line.Contains("[MCPServer] status=request-complete", StringComparison.Ordinal)
+				&& line.Contains("target=mesen", StringComparison.Ordinal);
 		}
 
 		private static void AppendLog(string? line)

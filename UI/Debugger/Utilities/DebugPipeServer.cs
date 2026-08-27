@@ -17,6 +17,8 @@ namespace Mesen.Debugger.Utilities
 		private NamedPipeServerStream? _pendingPipe;
 		private volatile bool _running;
 
+		public event EventHandler<string>? LogReceived;
+
 		public void Start()
 		{
 			lock(_lock) {
@@ -131,19 +133,22 @@ namespace Mesen.Debugger.Utilities
 
 		private void HandleConnection(NamedPipeServerStream pipe)
 		{
+			McpClientSession session = new(_service, WriteLog);
+			session.LogConnected();
 			try {
 				using StreamReader reader = new(pipe, new UTF8Encoding(false), false, 65536, true);
 				using StreamWriter writer = new(pipe, new UTF8Encoding(false), 65536, true) { AutoFlush = true };
 
 				string? line;
 				while(_running && (line = reader.ReadLine()) != null) {
-					writer.WriteLine(_service.HandleRequest(line));
+					writer.WriteLine(session.HandleRequest(line));
 				}
 			} catch(IOException) {
 			} catch(ObjectDisposedException) {
 			} catch(Exception ex) {
 				Console.Error.WriteLine($"[MCP] Named-pipe client error: {ex.Message}");
 			} finally {
+				session.LogDisconnected();
 				lock(_lock) {
 					_connections.Remove(pipe);
 				}
@@ -152,6 +157,11 @@ namespace Mesen.Debugger.Utilities
 				} catch(Exception) {
 				}
 			}
+		}
+
+		private void WriteLog(string line)
+		{
+			LogReceived?.Invoke(this, line);
 		}
 	}
 }

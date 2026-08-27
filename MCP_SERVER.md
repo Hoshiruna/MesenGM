@@ -5,7 +5,7 @@ MesenGM can expose its debugger to local Model Context Protocol clients. The fea
 - Mesen owns the debugger service and a local named pipe.
 - `MCPServer.exe` connects that pipe to either stdio or Streamable HTTP.
 
-The bridge is available on Windows builds. Several bridges can be connected at the same time, and a bridge stays usable across a whole client conversation even if Mesen is closed and reopened in the middle of it.
+The bridge is available on Windows builds. Several bridges can be connected at the same time. A bridge launched by an MCP client stays usable if Mesen is closed and reopened during the conversation. The HTTP bridge started from Mesen's **MCP Server** window exits automatically when that Mesen process ends.
 
 ## Connect through stdio
 

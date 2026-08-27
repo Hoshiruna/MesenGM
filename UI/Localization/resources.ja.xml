@@ -203,8 +203,8 @@
 			<Control ID="btnCopyUrl">URL をコピー</Control>
 			<Control ID="lblUrl">URL:</Control>
 			<Control ID="lblStatus">状態:</Control>
-			<Control ID="lblLog">ブリッジのログ:</Control>
-			<Control ID="chkShowConsole">MCPServer.exe のコンソールウィンドウを表示する (上のログは無効になります)</Control>
+			<Control ID="lblLog">MCP アクティビティログ:</Control>
+			<Control ID="chkShowConsole">MCPServer.exe のコンソールウィンドウを表示する (ブリッジの出力はコンソールに表示されます)</Control>
 			<Control ID="statusStarting">HTTP ブリッジ起動中...</Control>
 			<Control ID="statusRunning">HTTP ブリッジ実行中: {0} (デバッガーに接続済み)</Control>
 			<Control ID="statusRunningNoClient">HTTP ブリッジ実行中: {0} (クライアントの最初のリクエストを待機中)</Control>

@@ -835,8 +835,8 @@
 			<Control ID="btnCopyUrl">Copy URL</Control>
 			<Control ID="lblUrl">URL:</Control>
 			<Control ID="lblStatus">Status:</Control>
-			<Control ID="lblLog">Bridge log:</Control>
-			<Control ID="chkShowConsole">Show the MCPServer.exe console window (disables the log above)</Control>
+			<Control ID="lblLog">MCP activity log:</Control>
+			<Control ID="chkShowConsole">Show the MCPServer.exe console window (bridge output appears there)</Control>
 			<Control ID="statusStarting">HTTP bridge starting...</Control>
 			<Control ID="statusRunning">HTTP bridge running at {0}, connected to the debugger</Control>
 			<Control ID="statusRunningNoClient">HTTP bridge running at {0}, waiting for the first client request</Control>
