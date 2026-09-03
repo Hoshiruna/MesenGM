@@ -1087,6 +1087,12 @@
     <ClInclude Include="Shared\Video\DrawStringCommand.h">
       <Filter>Shared\Video</Filter>
     </ClInclude>
+    <ClInclude Include="Shared\Video\TrueTypeFont.h">
+      <Filter>Shared\Video</Filter>
+    </ClInclude>
+    <ClCompile Include="Shared\Video\TrueTypeFont.cpp">
+      <Filter>Shared\Video</Filter>
+    </ClCompile>
     <ClCompile Include="Shared\Video\ScaleFilter.cpp">
       <Filter>Shared\Video</Filter>
     </ClCompile>

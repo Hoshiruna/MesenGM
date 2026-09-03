@@ -12,6 +12,7 @@ Utilities/Audio/ymfm/*
 Utilities/Audio/blip_buf.*
 Utilities/Audio/orfanidis_eq.*
 Utilities/Audio/stb_vorbis.*
+Utilities/Font/stb_truetype.h
 Utilities/magic_enum.hpp
 Utilities/Video/gif.h
 Utilities/Video/ZmbvCodec.*

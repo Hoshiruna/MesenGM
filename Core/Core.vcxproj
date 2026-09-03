@@ -716,6 +716,7 @@
     <ClInclude Include="Shared\Video\DrawRectangleCommand.h" />
     <ClInclude Include="Shared\Video\DrawScreenBufferCommand.h" />
     <ClInclude Include="Shared\Video\DrawStringCommand.h" />
+    <ClInclude Include="Shared\Video\TrueTypeFont.h" />
     <ClInclude Include="Shared\FrameLimiter.h" />
     <ClInclude Include="Shared\Interfaces\IAudioDevice.h" />
     <ClInclude Include="Shared\Interfaces\IInputProvider.h" />
@@ -948,6 +949,7 @@
     <ClCompile Include="Shared\HistoryViewer.cpp" />
     <ClCompile Include="Shared\Utilities\S3511ARtc.cpp" />
     <ClCompile Include="Shared\Video\DrawStringCommand.cpp" />
+    <ClCompile Include="Shared\Video\TrueTypeFont.cpp" />
     <ClCompile Include="Shared\Video\RotateFilter.cpp" />
     <ClCompile Include="Shared\Video\SoftwareRenderer.cpp" />
     <ClCompile Include="Shared\Video\SystemHud.cpp" />

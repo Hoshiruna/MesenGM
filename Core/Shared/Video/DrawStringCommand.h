@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include "Shared/Video/DrawCommand.h"
+#include "Shared/Video/TrueTypeFont.h"
 
 class DrawStringCommand : public DrawCommand
 {
@@ -8,6 +9,8 @@ private:
 	int _x, _y, _color, _backColor;
 	int _maxWidth = 0;
 	string _text;
+	bool _useTrueTypeFont = false;
+	TrueTypeTextLayout _trueTypeLayout;
 
 	//Taken from FCEUX's LUA code
 	static constexpr int _tabSpace = 4;
@@ -131,8 +134,41 @@ private:
 	}
 
 protected:
+	void DrawTrueTypeString()
+	{
+		if(_backColor & 0xFF000000) {
+			for(const TrueTypeTextLine& line : _trueTypeLayout.Lines) {
+				for(uint32_t row = 0; row < _trueTypeLayout.LineHeight; row++) {
+					for(uint32_t column = 0; column < line.Width; column++) {
+						DrawPixel(_x + column, _y + line.Y + row, _backColor);
+					}
+				}
+			}
+		}
+
+		uint32_t textAlpha = ((uint32_t)_color >> 24) & 0xFF;
+		for(const TrueTypeGlyphPlacement& placement : _trueTypeLayout.Glyphs) {
+			const TrueTypeGlyph& glyph = *placement.Glyph;
+			for(int row = 0; row < glyph.Height; row++) {
+				for(int column = 0; column < glyph.Width; column++) {
+					uint8_t coverage = glyph.Pixels[(size_t)row * glyph.Width + column];
+					if(coverage > 0) {
+						uint32_t alpha = textAlpha * coverage / 255;
+						int color = (_color & 0xFFFFFF) | (alpha << 24);
+						DrawPixel(_x + placement.X + column, _y + placement.Y + row, color);
+					}
+				}
+			}
+		}
+	}
+
 	void InternalDraw()
 	{
+		if(_useTrueTypeFont) {
+			DrawTrueTypeString();
+			return;
+		}
+
 		int startX = (int)(_x * _xScale / std::floor(_xScale));
 		int lineWidth = 0;
 		int x = startX;
@@ -229,17 +265,24 @@ protected:
 	}
 
 public:
-	DrawStringCommand(int x, int y, string text, int color, int backColor, int frameCount, int startFrame, int maxWidth = 0, bool overwritePixels = false) :
-		DrawCommand(startFrame, frameCount, true), _x(x), _y(y), _color(color), _backColor(backColor), _maxWidth(maxWidth), _text(text)
+	DrawStringCommand(int x, int y, string text, int color, int backColor, int frameCount, int startFrame, int maxWidth = 0, bool overwritePixels = false, shared_ptr<TrueTypeFont> trueTypeFont = nullptr) :
+		DrawCommand(startFrame, frameCount, true), _x(x), _y(y), _color(color), _backColor(backColor), _maxWidth(maxWidth), _text(text), _useTrueTypeFont(trueTypeFont != nullptr)
 	{
 		//Invert alpha byte - 0 = opaque, 255 = transparent (this way, no need to specifiy alpha channel all the time)
 		_overwritePixels = overwritePixels;
 		_color = (~color & 0xFF000000) | (color & 0xFFFFFF);
 		_backColor = (~backColor & 0xFF000000) | (backColor & 0xFFFFFF);
+		if(trueTypeFont) {
+			_trueTypeLayout = trueTypeFont->Layout(_text, _maxWidth, true);
+		}
 	}
 
-	static TextSize MeasureString(string& text, uint32_t maxWidth = 0)
+	static TextSize MeasureString(string& text, uint32_t maxWidth = 0, shared_ptr<TrueTypeFont> trueTypeFont = nullptr)
 	{
+		if(trueTypeFont) {
+			return trueTypeFont->Layout(text, maxWidth, false).Size;
+		}
+
 		uint32_t maxX = 0;
 		uint32_t x = 0;
 		uint32_t y = 0;
