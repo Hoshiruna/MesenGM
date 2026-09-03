@@ -330,6 +330,7 @@ namespace Mesen.Debugger.Utilities
 			}
 
 			try {
+				EnsureRomLoaded();
 				return toolName switch {
 					"debugger_status" => ToolSuccess(id, GetDebuggerStatus()),
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),
