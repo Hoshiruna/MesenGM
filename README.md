@@ -35,7 +35,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## MCP debugger server
 
-Windows builds include a local MCP bridge for debugger clients. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
+Windows builds include a local MCP bridge for debugger clients. Import [mcp.json](mcp.json) in a compatible client, then start the server from **Debug > MCP Server**. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
 
 ## MCP and AI assistance disclaimer
 

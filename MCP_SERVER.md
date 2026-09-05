@@ -7,6 +7,12 @@ MesenGM can expose its debugger to local Model Context Protocol clients. The fea
 
 The bridge is available on Windows builds. Several bridges can be connected at the same time. A bridge launched by an MCP client stays usable if Mesen is closed and reopened during the conversation. The HTTP bridge started from Mesen's **MCP Server** window exits automatically when that Mesen process ends.
 
+## Import the client configuration
+
+Download [mcp.json](mcp.json) and import it in a client that supports the `mcpServers` JSON format and Streamable HTTP. In Mesen, open **Debug > MCP Server** and select **Start** before connecting. The file uses the default port, `51234`; if you choose another port, update the URL in the file.
+
+Import support depends on the client. For clients without a JSON import option, use the commands below.
+
 ## Connect through stdio
 
 Use stdio when the MCP client launches its own server process. The bridge starts immediately and answers `initialize` and `tools/list` on its own, so the client can finish its handshake before Mesen is open. Tool calls need a running Mesen and report a clear error until one is available.
