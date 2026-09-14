@@ -2505,6 +2505,12 @@
     <ClInclude Include="NES\Mappers\Mmc3Variants\McAcc.h">
       <Filter>NES\Mappers\Mmc3Variants</Filter>
     </ClInclude>
+    <ClInclude Include="NES\Mappers\Mmc3Variants\RincoFsg2.h">
+      <Filter>NES\Mappers\Mmc3Variants</Filter>
+    </ClInclude>
+    <ClInclude Include="NES\Mappers\Audio\RincoFsg2Audio.h">
+      <Filter>NES\Mappers\Audio</Filter>
+    </ClInclude>
     <ClInclude Include="NES\Mappers\Bandai\OekaKids.h">
       <Filter>NES\Mappers\Bandai</Filter>
     </ClInclude>
