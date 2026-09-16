@@ -68,7 +68,9 @@ The **MCP Server** window shows the bridge's own status and log output, so a fai
 | `get_rom_info` | Reports the loaded ROM and available CPU identifiers | No |
 | `get_cpu_state` | Reads CPU registers or the current program counter | No |
 | `get_ppu_state` | Reads scanline, cycle, and frame state | No |
+| `get_screen` | Returns the last rendered frame as a PNG image | No |
 | `get_memory_range` | Reads up to 4096 bytes from a memory region | No |
+| `search_memory` | Finds a byte pattern in a memory region | No |
 | `set_memory` | Writes up to 4096 bytes to a memory region | Yes |
 | `get_disassembly` | Disassembles code around an address | No |
 | `get_trace_tail` | Reads recent execution trace rows | No |
@@ -77,8 +79,11 @@ The **MCP Server** window shows the bridge's own status and log output, so a fai
 | `step` | Advances debugger execution | Yes |
 | `resume` | Resumes execution | Yes |
 | `pause` | Stops after the next instruction | Yes |
+| `save_rom` | Writes the loaded ROM or an IPS patch to a file | Yes (writes a file) |
 
 `get_cpu_state` returns structured SNES, NES, and Game Boy registers. Other debugger-supported CPUs return their program counter. `get_ppu_state` currently supports SNES, NES, and Game Boy.
+
+`get_screen` returns the most recent frame produced by the video decoder as an MCP `image` content block (`image/png`), followed by a JSON text block with `width`, `height`, `byte_length`, and `frame_count`. By default the PNG is the console's native output with the current rotation applied. Pass `apply_video_filter: true` to include the user's scale or NTSC filter, or `include_base64: true` to also receive the PNG inside the structured result for clients that cannot display image blocks. The frame is whatever the decoder last produced, so while execution is stopped it shows the last completed frame.
 
 Genesis-specific state tools are not included yet because this branch does not contain the Genesis core and interop types from mesen2-expanded. They can be added without changing the transport layer once those types arrive.
 

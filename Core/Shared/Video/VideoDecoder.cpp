@@ -245,9 +245,10 @@ void VideoDecoder::TakeScreenshot(string romName)
 	}
 }
 
-void VideoDecoder::TakeScreenshot(std::stringstream& stream)
+void VideoDecoder::TakeScreenshot(std::stringstream& stream, bool applyVideoFilter)
 {
 	if(_videoFilter) {
-		_videoFilter->TakeScreenshot(_videoFilterType, "", &stream);
+		//VideoFilterType::None skips the scale filter so the PNG keeps the console's native resolution
+		_videoFilter->TakeScreenshot(applyVideoFilter ? _videoFilterType : VideoFilterType::None, "", &stream);
 	}
 }

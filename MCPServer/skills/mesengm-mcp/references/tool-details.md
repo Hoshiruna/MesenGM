@@ -10,6 +10,7 @@ Check the live tool schema first. These details reflect `McpDebugService.cs` in 
 | `debugger_status` | No arguments. Includes `debugger_running`, `emulation_running`, `execution_stopped`, `emulation_paused`. |
 | `get_cpu_state` | Optional `cpu_type`; defaults to the loaded system's main CPU. |
 | `get_ppu_state` | Optional `cpu_type`; structured PPU state for NES, SNES and Game Boy. |
+| `get_screen` | Optional `apply_video_filter` (default false) and `include_base64` (default false). Returns the last rendered frame as an `image/png` content block plus `width`, `height`, `byte_length`, `frame_count`, `emulation_paused`. Fails until at least one frame has been rendered. |
 | `get_disassembly` | Optional `cpu_type`, `address`, `line_count` (1-100, default 20). Omitting `address` centers on the current PC. |
 | `get_trace_tail` | `count` (1-1000, default 100), `offset` (default 0, measured from the newest entry). No `cpu_type` argument. |
 | `get_debug_events` | Optional `cpu_type`, `max_count` (1-1000, default 100). Returns event type, PC, scanline, cycle and breakpoint ID. |

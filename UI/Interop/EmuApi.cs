@@ -54,6 +54,26 @@ namespace Mesen.Interop
 
 		[DllImport(DllPath)] public static extern void TakeScreenshot();
 
+		[DllImport(DllPath, EntryPoint = "GetScreenshotPng")] private static extern UInt32 GetScreenshotPngWrapper([Out] byte[]? outBuffer, UInt32 bufferSize, [MarshalAs(UnmanagedType.I1)] bool applyVideoFilter);
+		public static byte[]? GetScreenshotPng(bool applyVideoFilter)
+		{
+			//A native-resolution frame fits comfortably here; the loop only runs
+			//again when a scale filter produces a larger image.
+			byte[] buffer = new byte[512 * 478 * 4];
+			for(int attempt = 0; attempt < 3; attempt++) {
+				UInt32 size = EmuApi.GetScreenshotPngWrapper(buffer, (UInt32)buffer.Length, applyVideoFilter);
+				if(size == 0) {
+					return null;
+				}
+				if(size <= buffer.Length) {
+					Array.Resize(ref buffer, (int)size);
+					return buffer;
+				}
+				buffer = new byte[size];
+			}
+			return null;
+		}
+
 		[DllImport(DllPath)] public static extern void ProcessAudioPlayerAction(AudioPlayerActionParams p);
 
 		[DllImport(DllPath)]

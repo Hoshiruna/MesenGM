@@ -162,6 +162,18 @@ namespace Mesen.Debugger.Utilities
 					readOnly: true
 				),
 				(JsonNode)MakeToolDef(
+					"get_screen",
+					"Capture the most recently rendered frame as a PNG image. The result contains an image content block plus width, height, and frame count. By default the image is the console's native output; set apply_video_filter to include the user's scale/NTSC filter.",
+					new JsonObject {
+						["type"] = "object",
+						["properties"] = new JsonObject {
+							["apply_video_filter"] = BooleanProperty("Apply the emulator's current video filter (scale filters, NTSC, etc.) before encoding. False returns the native-resolution frame.", defaultValue: false),
+							["include_base64"] = BooleanProperty("Also place the base64 PNG in the structured result for clients that ignore image content blocks.", defaultValue: false)
+						}
+					},
+					readOnly: true
+				),
+				(JsonNode)MakeToolDef(
 					"get_memory_range",
 					$"Read up to {MaxMemoryTransfer} bytes from a Mesen memory region.",
 					new JsonObject {
@@ -336,6 +348,7 @@ namespace Mesen.Debugger.Utilities
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),
 					"get_cpu_state" => ToolSuccess(id, GetCpuState(arguments)),
 					"get_ppu_state" => ToolSuccess(id, GetPpuState(arguments)),
+					"get_screen" => GetScreen(id, arguments),
 					"get_memory_range" => ToolSuccess(id, GetMemoryRange(arguments)),
 					"search_memory" => ToolSuccess(id, SearchMemory(arguments)),
 					"set_memory" => ToolSuccess(id, SetMemory(arguments)),
@@ -495,6 +508,47 @@ namespace Mesen.Debugger.Utilities
 				["cycle"] = cycle,
 				["frame_count"] = frameCount
 			};
+		}
+
+		private static string GetScreen(JsonNode id, JsonObject? arguments)
+		{
+			bool applyVideoFilter = OptionalBool(arguments, "apply_video_filter", false);
+			bool includeBase64 = OptionalBool(arguments, "include_base64", false);
+
+			byte[]? png = EmuApi.GetScreenshotPng(applyVideoFilter);
+			if(png == null) {
+				throw new InvalidOperationException("No rendered frame is available yet. Let the emulator run at least one frame, then try again.");
+			}
+
+			(int width, int height) = ReadPngDimensions(png);
+			CpuType cpuType = GetCpuType(null);
+			JsonObject data = new() {
+				["width"] = width,
+				["height"] = height,
+				["mime_type"] = "image/png",
+				["byte_length"] = png.Length,
+				["video_filter_applied"] = applyVideoFilter,
+				["frame_count"] = EmuApi.GetTimingInfo(cpuType).FrameCount,
+				["emulation_paused"] = EmuApi.IsPaused()
+			};
+
+			string base64 = Convert.ToBase64String(png);
+			if(includeBase64) {
+				data["png_base64"] = base64;
+			}
+			return ToolSuccessWithImage(id, data, base64, "image/png");
+		}
+
+		// PNG files start with an 8-byte signature followed by the IHDR chunk, whose
+		// data holds the big-endian width and height.
+		private static (int Width, int Height) ReadPngDimensions(byte[] png)
+		{
+			if(png.Length < 24) {
+				throw new InvalidOperationException("The screenshot data is not a valid PNG.");
+			}
+			int width = (png[16] << 24) | (png[17] << 16) | (png[18] << 8) | png[19];
+			int height = (png[20] << 24) | (png[21] << 16) | (png[22] << 8) | png[23];
+			return (width, height);
 		}
 
 		private static JsonObject GetMemoryRange(JsonObject? arguments)
@@ -1109,6 +1163,28 @@ namespace Mesen.Debugger.Utilities
 			string text = data.ToJsonString();
 			return MakeJsonRpcResult(id, new JsonObject {
 				["content"] = new JsonArray {
+					(JsonNode)new JsonObject {
+						["type"] = "text",
+						["text"] = text
+					}
+				},
+				["structuredContent"] = data,
+				["isError"] = false
+			});
+		}
+
+		// Like ToolSuccess, but the image travels as an MCP image content block so
+		// clients can display it, while the JSON text block keeps the metadata.
+		private static string ToolSuccessWithImage(JsonNode id, JsonObject data, string base64Image, string mimeType)
+		{
+			string text = data.ToJsonString();
+			return MakeJsonRpcResult(id, new JsonObject {
+				["content"] = new JsonArray {
+					(JsonNode)new JsonObject {
+						["type"] = "image",
+						["data"] = base64Image,
+						["mimeType"] = mimeType
+					},
 					(JsonNode)new JsonObject {
 						["type"] = "text",
 						["text"] = text

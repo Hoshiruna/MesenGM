@@ -17,6 +17,7 @@ If tools are unavailable or calls cannot reach Mesen, read [connection.md](refer
 
 ## Inspect the game
 
+- Use `get_screen` to see what the game is currently displaying. It returns the last rendered frame as a PNG image block; the native-resolution default is the most useful for reading tiles and sprites. It shows the frame the video decoder last produced, not a live tilemap decode, so step or resume first if the frame must reflect a memory edit.
 - Start with a small CPU-state, disassembly or memory read that addresses the question. Use `search_memory` for byte-pattern searches instead of dumping entire regions.
 - Distinguish CPU-relative addresses from offsets in physical ROM or RAM regions. On a banked cartridge, the bytes mapped at a CPU address can change. Record the region name and address alongside relevant bytes; a CPU address is not automatically a ROM-file offset.
 - Send addresses and identifiers as JSON integers, not strings such as `"$8000"`. Use hexadecimal notation when explaining addresses to the user.
@@ -51,7 +52,7 @@ Follow existing authorization for edits and exports without asking again. If a m
 
 State the finding, the relevant addresses and bytes, and the observations supporting it. Distinguish a suspected cause from one reproduced by execution. For edits, include the changed range and verification result; for exports, include the output path. Mention any remaining breakpoint or execution-state changes.
 
-These tools do not provide ROM loading, controller input, audio capture or save-state management. Use another available interface when the task needs those capabilities; do not fabricate tool calls or claim a listening test from memory inspection alone.
+These tools do not provide ROM loading, controller input, audio capture or save-state management. `get_screen` is the only visual output; there is no tilemap, sprite or palette viewer tool. Use another available interface when the task needs those capabilities; do not fabricate tool calls or claim a listening test from memory inspection alone.
 
 ## Source of project-specific behavior
 
