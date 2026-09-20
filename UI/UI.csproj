@@ -666,6 +666,8 @@
 
 	<PropertyGroup>
 		<DllExtension>dll</DllExtension>
+		<PublishTrimmed>True</PublishTrimmed>
+		<PublishAot>True</PublishAot>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
 		<DllExtension>so</DllExtension>
@@ -678,12 +680,15 @@
 		
 		<!-- Only include the core DLL into the zip file for "release" builds (when OptimizeUi is true) -->
 		<DependencyFiles Condition="'$(OptimizeUi)'=='true'" Include="$(OutDir)MesenCore.$(DllExtension)" />
+    <!-- Also includes the MCPserver -->
+		<DependencyFiles Condition="'$(OptimizeUi)'=='true' And '$(RuntimeIdentifier)'=='win-x64'" Include="$(OutDir)MCPServer.exe" />
 
 		<NugetDependencyFiles Include="$(OutDir)libHarfBuzzSharp.$(DllExtension)" />
 		<NugetDependencyFiles Include="$(OutDir)libSkiaSharp.$(DllExtension)" />
 	</ItemGroup>
 
-	<Target Name="ZipDependencies" BeforeTargets="PreBuildEvent" AfterTargets="Restore" Inputs="@(DependencyFiles);@(NugetDependencyFiles);$(OutDir)NugetTimestamp.txt" Outputs="$(ProjectDir)Dependencies.zip">
+	<!-- Always rebuild this archive because its contents change with OptimizeUi, even when the source timestamps do not. -->
+	<Target Name="ZipDependencies" BeforeTargets="PreBuildEvent" AfterTargets="Restore">
 		<RemoveDir Directories="$(OutDir)Dependencies" />
 		<Copy SourceFiles="@(DependencyFiles)" DestinationFolder="$(OutDir)Dependencies/%(RecursiveDir)" />
 
@@ -692,6 +697,11 @@
 
 		<Copy Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64'" SourceFiles="./Assets/MesenIcon.icns" DestinationFolder="$(OutDir)" />
 		<ZipDirectory SourceDirectory="$(OutDir)Dependencies" DestinationFile="$(ProjectDir)Dependencies.zip" Overwrite="true" />
+	</Target>
+
+	<Target Name="CopyMcpServerToPublishDirectory" AfterTargets="Publish" Condition="'$(OptimizeUi)'=='true' And '$(RuntimeIdentifier)'=='win-x64'">
+		<Error Condition="!Exists('$(OutDir)MCPServer.exe')" Text="MCPServer.exe was not found. Build the solution in Release x64 before publishing." />
+		<Copy SourceFiles="$(OutDir)MCPServer.exe" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
 	</Target>
 
 	<Target Name="CleanDependencies" AfterTargets="Clean">

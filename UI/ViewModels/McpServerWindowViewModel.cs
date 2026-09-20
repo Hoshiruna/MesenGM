@@ -10,9 +10,11 @@ namespace Mesen.ViewModels
 	public partial class McpServerWindowViewModel : DisposableViewModel
 	{
 		[ObservableProperty] public partial int Port { get; set; }
+		[ObservableProperty] public partial bool ShowConsoleWindow { get; set; }
 		[ObservableProperty] public partial bool IsRunning { get; private set; }
 		[ObservableProperty] public partial string ServerUrl { get; private set; } = "";
 		[ObservableProperty] public partial string Status { get; private set; } = "";
+		[ObservableProperty] public partial string Log { get; private set; } = "";
 		[ObservableProperty] public partial bool CanEditPort { get; private set; }
 		[ObservableProperty] public partial bool CanStart { get; private set; }
 		[ObservableProperty] public partial bool CanStop { get; private set; }
@@ -20,7 +22,9 @@ namespace Mesen.ViewModels
 		public McpServerWindowViewModel()
 		{
 			Port = ConfigManager.Config.McpServer.Port;
+			ShowConsoleWindow = ConfigManager.Config.McpServer.ShowConsoleWindow;
 			McpServerManager.StateChanged += McpServerManager_StateChanged;
+			McpServerManager.LogReceived += McpServerManager_LogReceived;
 			RefreshDerivedState();
 		}
 
@@ -54,9 +58,16 @@ namespace Mesen.ViewModels
 			RefreshDerivedState();
 		}
 
+		partial void OnShowConsoleWindowChanged(bool value)
+		{
+			ConfigManager.Config.McpServer.ShowConsoleWindow = value;
+			ConfigManager.Config.Save();
+		}
+
 		protected override void DisposeView()
 		{
 			McpServerManager.StateChanged -= McpServerManager_StateChanged;
+			McpServerManager.LogReceived -= McpServerManager_LogReceived;
 		}
 
 		private void McpServerManager_StateChanged(object? sender, EventArgs e)
@@ -64,16 +75,38 @@ namespace Mesen.ViewModels
 			Dispatcher.UIThread.Post(RefreshDerivedState);
 		}
 
+		private void McpServerManager_LogReceived(object? sender, string line)
+		{
+			Dispatcher.UIThread.Post(RefreshLog);
+		}
+
 		private void RefreshDerivedState()
 		{
 			IsRunning = McpServerManager.IsRunning;
 			ServerUrl = $"http://127.0.0.1:{Port}/mcp/";
-			Status = IsRunning
-				? string.Format(ResourceHelper.GetViewLabel("McpServerWindow", "statusRunning"), McpServerManager.ServerUrl)
-				: ResourceHelper.GetViewLabel("McpServerWindow", "statusStopped");
+			Status = GetStatusText();
 			CanEditPort = !IsRunning;
 			CanStart = !IsRunning;
 			CanStop = IsRunning;
+			RefreshLog();
+		}
+
+		private string GetStatusText()
+		{
+			if(!IsRunning) {
+				return ResourceHelper.GetViewLabel("McpServerWindow", "statusStopped");
+			}
+			if(!McpServerManager.IsListening) {
+				return ResourceHelper.GetViewLabel("McpServerWindow", "statusStarting");
+			}
+
+			string label = McpServerManager.IsPipeConnected ? "statusRunning" : "statusRunningNoClient";
+			return string.Format(ResourceHelper.GetViewLabel("McpServerWindow", label), McpServerManager.ServerUrl);
+		}
+
+		private void RefreshLog()
+		{
+			Log = McpServerManager.GetLogText();
 		}
 	}
 }

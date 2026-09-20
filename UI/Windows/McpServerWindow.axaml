@@ -7,26 +7,27 @@
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:vm="using:Mesen.ViewModels"
 	mc:Ignorable="d"
-	d:DesignWidth="520"
-	d:DesignHeight="220"
+	d:DesignWidth="560"
+	d:DesignHeight="420"
 	x:Class="Mesen.Windows.McpServerWindow"
 	x:DataType="vm:McpServerWindowViewModel"
-	Width="520"
-	Height="220"
+	Width="560"
+	Height="420"
 	MinWidth="520"
-	MinHeight="220"
-	CanResize="False"
+	MinHeight="360"
+	CanResize="True"
 	Icon="/Assets/McpServer.png"
 	Title="{l:Translate wndTitle}"
 >
 	<DockPanel Margin="8">
-		<StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+		<StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="0 8 0 0">
+			<Button MinWidth="85" Click="CopyLog_OnClick" Content="{l:Translate btnCopyLog}" />
 			<Button MinWidth="85" Click="Start_OnClick" IsEnabled="{Binding CanStart}" Content="{l:Translate btnStart}" />
 			<Button MinWidth="85" Click="Stop_OnClick" IsEnabled="{Binding CanStop}" Content="{l:Translate btnStop}" />
 			<Button MinWidth="85" Click="Close_OnClick" IsCancel="True" Content="{l:Translate btnClose}" />
 		</StackPanel>
 
-		<StackPanel Spacing="10">
+		<StackPanel DockPanel.Dock="Top" Spacing="10">
 			<TextBlock Text="{l:Translate lblIntro}" TextWrapping="Wrap" />
 
 			<Grid ColumnDefinitions="Auto,130,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
@@ -40,6 +41,21 @@
 				<TextBlock Grid.Row="2" Text="{l:Translate lblStatus}" VerticalAlignment="Top" />
 				<TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Status}" TextWrapping="Wrap" />
 			</Grid>
+
+			<CheckBox IsChecked="{Binding ShowConsoleWindow}" IsEnabled="{Binding CanEditPort}" Content="{l:Translate chkShowConsole}" />
+
+			<TextBlock Text="{l:Translate lblLog}" />
 		</StackPanel>
+
+		<Border BorderBrush="{StaticResource MesenGrayBorderColor}" BorderThickness="1" Margin="0 4 0 0">
+			<ScrollViewer Name="_logScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+				<TextBlock
+					Margin="4"
+					FontFamily="{DynamicResource MesenMonospaceFont}"
+					FontSize="{DynamicResource MesenMonospaceFontSize}"
+					Text="{Binding Log}"
+				/>
+			</ScrollViewer>
+		</Border>
 	</DockPanel>
 </Window>

@@ -46,6 +46,8 @@ public:
 
 	static int MeasureString(lua_State* lua);
 	static int DrawString(lua_State* lua);
+	static int LoadFont(lua_State* lua);
+	static int UnloadFont(lua_State* lua);
 
 	static int DrawLine(lua_State* lua);
 	static int DrawPixel(lua_State* lua);

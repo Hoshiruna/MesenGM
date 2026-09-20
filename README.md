@@ -10,7 +10,7 @@ The latest stable version is available from the [releases page on GitHub]().
 
 ## Development Builds
 
-[![Mesen]()]()
+[![Build Mesen](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml/badge.svg)](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml)
 
 * [Windows]()
   * Windows 7 or higher is required. Windows 7 users must use SP1 and have all updates installed.
@@ -33,9 +33,13 @@ See [COMPILING.md](COMPILING.md)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## Lua API documentation
+
+MesenGM has added Lua-style documentation, See [MesenGM Lua API Documentation](https://github.com/Hoshiruna/MesenGM-Lua-Documentation) for the Lua API documentation index.
+
 ## MCP debugger server
 
-Windows builds include a local MCP bridge for debugger clients. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
+Windows builds include a local MCP bridge for debugger clients. Import [mcp.json](mcp.json) in a compatible client, then start the server from **Debug > MCP Server**. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
 
 ## MCP and AI assistance disclaimer
 

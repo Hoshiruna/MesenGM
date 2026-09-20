@@ -98,6 +98,7 @@
 #include "NES/Mappers/Mmc3Variants/MMC3_MaliSB.h"
 #include "NES/Mappers/Mmc3Variants/MMC3_StreetHeroes.h"
 #include "NES/Mappers/Mmc3Variants/McAcc.h"
+#include "NES/Mappers/Mmc3Variants/RincoFsg2.h"
 #include "NES/Mappers/Mmc3Variants/ResetTxrom.h"
 #include "NES/Mappers/Mmc3Variants/Unl158B.h"
 #include "NES/Mappers/Mmc3Variants/Unl8237A.h"
@@ -622,6 +623,7 @@ BaseMapper* MapperFactory::GetMapperFromID(RomData& romData)
 		case 530: return new Ax5705();
 		
 		case 552: return new TaitoX1017();
+		case 594: return new RincoFsg2();
 
 		case 682: return new Rainbow();
 

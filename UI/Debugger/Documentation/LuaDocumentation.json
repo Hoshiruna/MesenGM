@@ -143,7 +143,8 @@
 		{ "name": "backgroundColor", "type": "Int (ARGB)", "description": "Color to use for the background", "defaultValue": "0 (black)" },
 		{ "name": "maxWidth", "type": "Int", "description": "Max width (pixels) - wraps to next line when reached", "defaultValue": "0" },
 		{ "name": "duration", "type": "Int", "description": "Number of frames to display", "defaultValue": "1" },
-		{ "name": "delay", "type": "Int", "description": "Number of frames to wait before drawing the text", "defaultValue": "0" }
+		{ "name": "delay", "type": "Int", "description": "Number of frames to wait before drawing the text", "defaultValue": "0" },
+		{ "name": "fontId", "type": "Int", "description": "Font ID returned by emu.loadFont. Uses the built-in font when omitted.", "defaultValue": "0" }
 	]
 },
 {
@@ -298,6 +299,18 @@
 	"returnValue": { "type": "Bool", "description": "The key's state (true when pressed)" }
 },
 {
+	"name": "loadFont",
+	"category": "Drawing",
+	"description": "Loads a TrueType font for emu.drawString and emu.measureString. Mesen resolves relative paths from the Lua script's folder. Enable I/O access in the script window before calling this function. Load only trusted font files.",
+	"parameters": [
+		{ "name": "filename", "type": "String", "description": "Path to a TTF or TTC font file" },
+		{ "name": "pixelSize", "type": "Int", "description": "Font size in pixels (1 to 256)" },
+		{ "name": "monochrome", "type": "Boolean", "description": "When true, renders every glyph pixel as fully transparent or fully opaque", "defaultValue": "false" },
+		{ "name": "faceIndex", "type": "Int", "description": "Font face to load from a TrueType collection", "defaultValue": "0" }
+	],
+	"returnValue": { "type": "Int", "description": "Font ID used by emu.drawString, emu.measureString, and emu.unloadFont" }
+},
+{
 	"name": "loadSavestate",
 	"category": "Miscellaneous",
 	"subcategory": "SaveStates",
@@ -320,7 +333,8 @@
 	"description": "Measures the specified string and returns a table containing the width and height that the string would take when drawn.",
 	"parameters": [
 		{ "name": "text", "type": "String", "description": "String to measure" },
-		{ "name": "maxWidth", "type": "Int", "description": "Max width (pixels) - wraps to next line when reached", "defaultValue": "0" }
+		{ "name": "maxWidth", "type": "Int", "description": "Max width (pixels) - wraps to next line when reached", "defaultValue": "0" },
+		{ "name": "fontId", "type": "Int", "description": "Font ID returned by emu.loadFont. Uses the built-in font when omitted.", "defaultValue": "0" }
 	],
 	"returnValue": { "type": "Table", "description": "{ width = int, height = int }" }
 },
@@ -470,6 +484,14 @@
 		{ "name": "endAddress", "type": "Int", "description": "End of the address range", "defaultValue": "start address" },
 		{ "name": "cpuType", "type": "Enum", "enumName": "cpuType", "description": "CPU used for the callback", "defaultValue": "main CPU" },
 		{ "name": "memoryType", "type": "Enum", "enumName": "memType", "description": "Memory type", "defaultValue": "main CPU memory" }
+	]
+},
+{
+	"name": "unloadFont",
+	"category": "Drawing",
+	"description": "Unloads a font returned by emu.loadFont. Text already queued for drawing keeps its font.",
+	"parameters": [
+		{ "name": "fontId", "type": "Int", "description": "Font ID returned by emu.loadFont" }
 	]
 },
 {

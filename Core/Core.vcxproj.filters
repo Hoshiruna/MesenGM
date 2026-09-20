@@ -1087,6 +1087,12 @@
     <ClInclude Include="Shared\Video\DrawStringCommand.h">
       <Filter>Shared\Video</Filter>
     </ClInclude>
+    <ClInclude Include="Shared\Video\TrueTypeFont.h">
+      <Filter>Shared\Video</Filter>
+    </ClInclude>
+    <ClCompile Include="Shared\Video\TrueTypeFont.cpp">
+      <Filter>Shared\Video</Filter>
+    </ClCompile>
     <ClCompile Include="Shared\Video\ScaleFilter.cpp">
       <Filter>Shared\Video</Filter>
     </ClCompile>
@@ -2498,6 +2504,12 @@
     </ClInclude>
     <ClInclude Include="NES\Mappers\Mmc3Variants\McAcc.h">
       <Filter>NES\Mappers\Mmc3Variants</Filter>
+    </ClInclude>
+    <ClInclude Include="NES\Mappers\Mmc3Variants\RincoFsg2.h">
+      <Filter>NES\Mappers\Mmc3Variants</Filter>
+    </ClInclude>
+    <ClInclude Include="NES\Mappers\Audio\RincoFsg2Audio.h">
+      <Filter>NES\Mappers\Audio</Filter>
     </ClInclude>
     <ClInclude Include="NES\Mappers\Bandai\OekaKids.h">
       <Filter>NES\Mappers\Bandai</Filter>

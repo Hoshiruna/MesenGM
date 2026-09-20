@@ -190,6 +190,29 @@ extern "C"
 		_emu->GetVideoDecoder()->TakeScreenshot();
 	}
 
+	//Encodes the most recent rendered frame as a PNG and copies it to outBuffer.
+	//Returns the full PNG size in bytes (0 when no frame is available). When the
+	//buffer is too small, nothing is copied and the caller can retry with the returned size.
+	DllExport uint32_t __stdcall GetScreenshotPng(uint8_t* outBuffer, uint32_t bufferSize, bool applyVideoFilter)
+	{
+		VideoDecoder* decoder = _emu->GetVideoDecoder();
+		if(!decoder) {
+			return 0;
+		}
+
+		std::stringstream stream;
+		decoder->TakeScreenshot(stream, applyVideoFilter);
+		string png = stream.str();
+		if(png.empty()) {
+			return 0;
+		}
+
+		if(outBuffer && png.size() <= bufferSize) {
+			memcpy(outBuffer, png.data(), png.size());
+		}
+		return (uint32_t)png.size();
+	}
+
 	DllExport void __stdcall ProcessAudioPlayerAction(AudioPlayerActionParams p)
 	{
 		_emu->ProcessAudioPlayerAction(p);

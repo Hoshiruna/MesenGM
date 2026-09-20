@@ -214,6 +214,7 @@
     <ClInclude Include="CompressionHelper.h" />
     <ClInclude Include="CRC32.h" />
     <ClInclude Include="FastString.h" />
+    <ClInclude Include="Font\stb_truetype.h" />
     <ClInclude Include="kissfft.h" />
     <ClInclude Include="FolderUtilities.h" />
     <ClInclude Include="HexUtilities.h" />

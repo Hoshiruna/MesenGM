@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <filesystem>
 #include "LuaApi.h"
 #include "Lua/lua.hpp"
 #include "Debugger/LuaCallHelper.h"
@@ -21,6 +22,7 @@
 #include "Shared/Video/VideoRenderer.h"
 #include "Shared/Video/DrawScreenBufferCommand.h"
 #include "Shared/Video/DrawStringCommand.h"
+#include "Shared/Video/TrueTypeFont.h"
 #include "Shared/KeyManager.h"
 #include "Shared/Interfaces/IConsole.h"
 #include "Shared/Interfaces/IKeyManager.h"
@@ -110,6 +112,8 @@ int LuaApi::GetLibrary(lua_State* lua)
 
 		{ "measureString", LuaApi::MeasureString },
 		{ "drawString", LuaApi::DrawString },
+		{ "loadFont", LuaApi::LoadFont },
+		{ "unloadFont", LuaApi::UnloadFont },
 
 		{ "drawPixel", LuaApi::DrawPixel },
 		{ "drawPixels", LuaApi::DrawPixels },
@@ -537,12 +541,15 @@ int LuaApi::UnregisterEventCallback(lua_State* lua)
 int LuaApi::MeasureString(lua_State* lua)
 {
 	LuaCallHelper l(lua);
-	l.ForceParamCount(2);
+	l.ForceParamCount(3);
+	uint32_t fontId = l.ReadInteger(0);
 	int maxWidth = l.ReadInteger(0);
 	string text = l.ReadString();
 	checkminparams(1);
 
-	TextSize size = DrawStringCommand::MeasureString(text, maxWidth);
+	shared_ptr<TrueTypeFont> font = fontId == 0 ? nullptr : _context->GetFont(fontId);
+	errorCond(fontId != 0 && !font, "invalid font ID");
+	TextSize size = DrawStringCommand::MeasureString(text, maxWidth, font);
 	lua_newtable(lua);
 	lua_pushintvalue(width, size.X);
 	lua_pushintvalue(height, size.Y);
@@ -552,7 +559,8 @@ int LuaApi::MeasureString(lua_State* lua)
 int LuaApi::DrawString(lua_State* lua)
 {
 	LuaCallHelper l(lua);
-	l.ForceParamCount(8);
+	l.ForceParamCount(9);
+	uint32_t fontId = l.ReadInteger(0);
 	int displayDelay = l.ReadInteger(0);
 	int frameCount = l.ReadInteger(1);
 	int maxWidth = l.ReadInteger(0);
@@ -563,9 +571,46 @@ int LuaApi::DrawString(lua_State* lua)
 	int x = l.ReadInteger();
 	checkminparams(3);
 
+	shared_ptr<TrueTypeFont> font = fontId == 0 ? nullptr : _context->GetFont(fontId);
+	errorCond(fontId != 0 && !font, "invalid font ID");
 	int startFrame = _emu->GetFrameCount() + displayDelay;
-	GetHud()->DrawString(x, y, text, color, backColor, frameCount, startFrame, maxWidth);
+	GetHud()->DrawString(x, y, text, color, backColor, frameCount, startFrame, maxWidth, false, font);
 
+	return l.ReturnCount();
+}
+
+int LuaApi::LoadFont(lua_State* lua)
+{
+	LuaCallHelper l(lua);
+	l.ForceParamCount(4);
+	uint32_t faceIndex = l.ReadInteger(0);
+	bool monochrome = l.ReadBool(false);
+	uint32_t pixelSize = l.ReadInteger();
+	string filename = l.ReadString();
+	checkminparams(2);
+
+	errorCond(!_emu->GetSettings()->GetDebugConfig().ScriptAllowIoOsAccess, "font loading requires I/O access to be enabled");
+	errorCond(filename.empty(), "font filename cannot be empty");
+	errorCond(pixelSize == 0 || pixelSize > 256, "font size must be between 1 and 256 pixels");
+
+	std::filesystem::path fontPath = std::filesystem::u8path(filename);
+	if(fontPath.is_relative()) {
+		fontPath = std::filesystem::u8path(_context->GetScriptPath()) / fontPath;
+	}
+
+	string errorMessage;
+	shared_ptr<TrueTypeFont> font = TrueTypeFont::Load(fontPath.lexically_normal().u8string(), pixelSize, monochrome, faceIndex, errorMessage);
+	errorCond(!font, errorMessage.c_str());
+	l.Return(_context->AddFont(font));
+	return l.ReturnCount();
+}
+
+int LuaApi::UnloadFont(lua_State* lua)
+{
+	LuaCallHelper l(lua);
+	uint32_t fontId = l.ReadInteger();
+	checkparams();
+	errorCond(!_context->UnloadFont(fontId), "invalid font ID");
 	return l.ReturnCount();
 }
 

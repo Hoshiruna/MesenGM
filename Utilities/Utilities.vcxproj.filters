@@ -10,6 +10,9 @@
     <Filter Include="Audio">
       <UniqueIdentifier>{cde7b53f-be5e-4201-8194-0352d00216aa}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Font">
+      <UniqueIdentifier>{4c78c725-2272-4e12-98eb-9ff2f24c8c18}</UniqueIdentifier>
+    </Filter>
     <Filter Include="NTSC">
       <UniqueIdentifier>{8b0e23bf-1bd9-4cc1-8046-784fd01e8688}</UniqueIdentifier>
     </Filter>
@@ -74,6 +77,9 @@
     </ClInclude>
     <ClInclude Include="Audio\stb_vorbis.h">
       <Filter>Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="Font\stb_truetype.h">
+      <Filter>Font</Filter>
     </ClInclude>
     <ClInclude Include="Video\AviRecorder.h">
       <Filter>Video</Filter>

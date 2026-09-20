@@ -133,9 +133,9 @@ endif
 
 
 ifeq ($(USE_AOT),true)
-	PUBLISHFLAGS ?=  -r $(MESENPLATFORM) -p:PublishSingleFile=false -p:PublishAot=true -p:SelfContained=true
+	PUBLISHFLAGS ?=  -r $(MESENPLATFORM) -p:PublishSingleFile=false -p:PublishAot=true -p:PublishTrimmed=true -p:SelfContained=true
 else
-	PUBLISHFLAGS ?=  -r $(MESENPLATFORM) --no-self-contained -p:PublishSingleFile=true
+	PUBLISHFLAGS ?=  -r $(MESENPLATFORM) --no-self-contained -p:PublishSingleFile=true -p:PublishAot=false -p:PublishTrimmed=false
 endif
 
 
@@ -194,9 +194,9 @@ ifeq ($(MESENOS),osx)
 	LIBEVDEVSRC := 
 	FSLIB := 
 	ifeq ($(USE_AOT),true)
-		PUBLISHFLAGS := -t:BundleApp -p:UseAppHost=true -p:RuntimeIdentifier=$(MESENPLATFORM) -p:PublishSingleFile=false -p:PublishAot=true -p:SelfContained=true
+		PUBLISHFLAGS := -t:BundleApp -p:UseAppHost=true -p:RuntimeIdentifier=$(MESENPLATFORM) -p:PublishSingleFile=false -p:PublishAot=true -p:PublishTrimmed=true -p:SelfContained=true
 	else
-		PUBLISHFLAGS := -t:BundleApp -p:UseAppHost=true -p:RuntimeIdentifier=$(MESENPLATFORM) -p:SelfContained=true -p:PublishSingleFile=false -p:PublishReadyToRun=false
+		PUBLISHFLAGS := -t:BundleApp -p:UseAppHost=true -p:RuntimeIdentifier=$(MESENPLATFORM) -p:SelfContained=true -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:PublishAot=false -p:PublishTrimmed=true
 	endif
 endif
 
@@ -208,7 +208,7 @@ ui: InteropDLL/$(OBJFOLDER)/$(SHAREDLIB)
 	cp InteropDLL/$(OBJFOLDER)/$(SHAREDLIB) $(OUTFOLDER)/$(SHAREDLIB)
 	#Called twice because the first call copies native libraries to the bin folder which need to be included in Dependencies.zip
 	#Don't run with AOT flags the first time to reduce build duration
-	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) -r $(MESENPLATFORM)
+	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) -r $(MESENPLATFORM) --no-self-contained -p:PublishAot=false -p:PublishTrimmed=false
 	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) $(PUBLISHFLAGS)
 
 core: InteropDLL/$(OBJFOLDER)/$(SHAREDLIB)
