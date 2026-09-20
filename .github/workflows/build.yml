@@ -213,22 +213,40 @@ jobs:
           ENTITLEMENTS: UI/Mesen.entitlements
           SIGNING_IDENTITY: Mesen
         run: |
-          # Export certs
-          echo "$CERT_DATA" | base64 --decode > /tmp/certs.p12
-          # Create keychain
-          security create-keychain -p actions macos-build.keychain
-          security default-keychain -s macos-build.keychain
-          security unlock-keychain -p actions macos-build.keychain
-          security set-keychain-settings -t 3600 -u macos-build.keychain
-          # Import certs to keychain
-          security import /tmp/certs.p12 -k ~/Library/Keychains/macos-build.keychain -P "$CERT_PASS" -T /usr/bin/codesign -T /usr/bin/productsign
-          # Key signing
-          security set-key-partition-list -S apple-tool:,apple: -s -k actions macos-build.keychain
-          # print identities
-          security find-identity -v macos-build.keychain
+          set -euo pipefail
+
+          if [[ -z "$CERT_DATA" && -z "$CERT_PASS" ]]; then
+            echo "::warning::macOS signing secrets are not configured; publishing an unsigned build."
+            exit 0
+          fi
+          if [[ -z "$CERT_DATA" || -z "$CERT_PASS" ]]; then
+            echo "::error::MACOS_CERTIFICATE and MACOS_CERTIFICATE_PWD must both be configured."
+            exit 1
+          fi
+
+          CERT_PATH="$RUNNER_TEMP/certs.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/macos-build.keychain-db"
+          if ! printf '%s' "$CERT_DATA" | base64 --decode > "$CERT_PATH"; then
+            echo "::error::MACOS_CERTIFICATE is not valid base64."
+            exit 1
+          fi
+          if [[ ! -s "$CERT_PATH" ]]; then
+            echo "::error::MACOS_CERTIFICATE decoded to an empty file."
+            exit 1
+          fi
+
+          security create-keychain -p actions "$KEYCHAIN_PATH"
+          security unlock-keychain -p actions "$KEYCHAIN_PATH"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
+          if ! security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CERT_PASS" -T /usr/bin/codesign -T /usr/bin/productsign; then
+            echo "::error::Could not import MACOS_CERTIFICATE. Verify that it is a base64-encoded PKCS#12 file and that MACOS_CERTIFICATE_PWD is correct."
+            exit 1
+          fi
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KEYCHAIN_PATH"
+          security find-identity -v "$KEYCHAIN_PATH"
 
           echo "[INFO] Signing app file"
-          codesign --force --deep --timestamp --keychain macos-build.keychain --options=runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_NAME"
+          codesign --force --deep --timestamp --keychain "$KEYCHAIN_PATH" --options=runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_NAME"
 
       - name: Zip Mesen.app
         if: github.event_name != 'pull_request'
