@@ -10,7 +10,7 @@ The latest stable version is available from the [releases page on GitHub]().
 
 ## Development Builds
 
-[![Mesen]()]()
+[![Build Mesen](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml/badge.svg)](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml)
 
 * [Windows]()
   * Windows 7 or higher is required. Windows 7 users must use SP1 and have all updates installed.
