@@ -14,10 +14,10 @@ namespace Mesen.Debugger.Utilities
 		private const int MaxLogLines = 200;
 		private const int StartupTimeoutMs = 5000;
 
-		private static readonly object _lock = new();
-		private static readonly string _serverExe = Path.Combine(AppContext.BaseDirectory, "MCPServer.exe");
-		private static readonly int _parentProcessId = Process.GetCurrentProcess().Id;
-		private static readonly Queue<string> _log = new();
+		private static readonly object Lock = new();
+		private static readonly string ServerExe = Path.Combine(AppContext.BaseDirectory, "MCPServer.exe");
+		private static readonly int ParentProcessId = Process.GetCurrentProcess().Id;
+		private static readonly Queue<string> Log = new();
 		private static DebugPipeServer? _debugPipeServer;
 		private static Process? _serverProcess;
 		private static ManualResetEventSlim? _readyEvent;
@@ -28,9 +28,11 @@ namespace Mesen.Debugger.Utilities
 		public static event EventHandler? StateChanged;
 		public static event EventHandler<string>? LogReceived;
 
-		public static ushort Port {
-			get {
-				lock(_lock) {
+		public static ushort Port
+		{
+			get
+			{
+				lock(Lock) {
 					return _port;
 				}
 			}
@@ -38,9 +40,11 @@ namespace Mesen.Debugger.Utilities
 
 		public static string ServerUrl => $"http://127.0.0.1:{Port}/mcp/";
 
-		public static bool IsRunning {
-			get {
-				lock(_lock) {
+		public static bool IsRunning
+		{
+			get
+			{
+				lock(Lock) {
 					CleanupExitedProcess_NoLock();
 					return IsRunning_NoLock();
 				}
@@ -48,9 +52,11 @@ namespace Mesen.Debugger.Utilities
 		}
 
 		/// <summary>True once the bridge reported that it is accepting HTTP requests.</summary>
-		public static bool IsListening {
-			get {
-				lock(_lock) {
+		public static bool IsListening
+		{
+			get
+			{
+				lock(Lock) {
 					CleanupExitedProcess_NoLock();
 					return IsRunning_NoLock() && _isListening;
 				}
@@ -58,9 +64,11 @@ namespace Mesen.Debugger.Utilities
 		}
 
 		/// <summary>True while the bridge holds an open connection to Mesen's debugger pipe.</summary>
-		public static bool IsPipeConnected {
-			get {
-				lock(_lock) {
+		public static bool IsPipeConnected
+		{
+			get
+			{
+				lock(Lock) {
 					CleanupExitedProcess_NoLock();
 					return IsRunning_NoLock() && _isPipeConnected;
 				}
@@ -69,8 +77,8 @@ namespace Mesen.Debugger.Utilities
 
 		public static string GetLogText()
 		{
-			lock(_lock) {
-				return string.Join(Environment.NewLine, _log);
+			lock(Lock) {
+				return string.Join(Environment.NewLine, Log);
 			}
 		}
 
@@ -80,7 +88,7 @@ namespace Mesen.Debugger.Utilities
 				return;
 			}
 
-			lock(_lock) {
+			lock(Lock) {
 				if(_debugPipeServer == null) {
 					_debugPipeServer = new DebugPipeServer();
 					_debugPipeServer.LogReceived += DebugPipeServer_LogReceived;
@@ -103,7 +111,7 @@ namespace Mesen.Debugger.Utilities
 			Process process;
 			ManualResetEventSlim readyEvent;
 
-			lock(_lock) {
+			lock(Lock) {
 				CleanupExitedProcess_NoLock();
 				if(IsRunning_NoLock()) {
 					if(_port == port) {
@@ -113,8 +121,8 @@ namespace Mesen.Debugger.Utilities
 					return false;
 				}
 
-				if(!File.Exists(_serverExe)) {
-					error = $"MCPServer.exe was not found at:\n{_serverExe}";
+				if(!File.Exists(ServerExe)) {
+					error = $"MCPServer.exe was not found at:\n{ServerExe}";
 					return false;
 				}
 				if(!IsPortAvailable(port)) {
@@ -122,14 +130,14 @@ namespace Mesen.Debugger.Utilities
 					return false;
 				}
 
-				_log.Clear();
+				Log.Clear();
 				_isListening = false;
 				_isPipeConnected = false;
 				_readyEvent = readyEvent = new ManualResetEventSlim(false);
 
 				ProcessStartInfo startInfo = new() {
-					FileName = _serverExe,
-					Arguments = $"{port} --parent-pid {_parentProcessId}",
+					FileName = ServerExe,
+					Arguments = $"{port} --parent-pid {ParentProcessId}",
 					WorkingDirectory = AppContext.BaseDirectory,
 					UseShellExecute = false,
 					// The bridge writes its whole log to stderr. Capturing it is what
@@ -186,7 +194,7 @@ namespace Mesen.Debugger.Utilities
 			if(showConsole) {
 				// Without captured output there is no readiness line to wait for, so
 				// "still alive after 250 ms" is the only signal available.
-				lock(_lock) {
+				lock(Lock) {
 					_isListening = true;
 				}
 			}
@@ -198,7 +206,7 @@ namespace Mesen.Debugger.Utilities
 		public static void Stop()
 		{
 			Process? process;
-			lock(_lock) {
+			lock(Lock) {
 				CleanupExitedProcess_NoLock();
 				process = _serverProcess;
 				_serverProcess = null;
@@ -231,7 +239,7 @@ namespace Mesen.Debugger.Utilities
 		{
 			Stop();
 			DebugPipeServer? debugPipeServer;
-			lock(_lock) {
+			lock(Lock) {
 				debugPipeServer = _debugPipeServer;
 				_debugPipeServer = null;
 			}
@@ -245,7 +253,7 @@ namespace Mesen.Debugger.Utilities
 		{
 			for(int waited = 0; waited < StartupTimeoutMs; waited += 50) {
 				if(readyEvent.Wait(50)) {
-					lock(_lock) {
+					lock(Lock) {
 						return _isListening;
 					}
 				}
@@ -253,7 +261,7 @@ namespace Mesen.Debugger.Utilities
 					return false;
 				}
 			}
-			lock(_lock) {
+			lock(Lock) {
 				return _isListening;
 			}
 		}
@@ -287,10 +295,10 @@ namespace Mesen.Debugger.Utilities
 			}
 
 			bool stateChanged = false;
-			lock(_lock) {
-				_log.Enqueue(line);
-				while(_log.Count > MaxLogLines) {
-					_log.Dequeue();
+			lock(Lock) {
+				Log.Enqueue(line);
+				while(Log.Count > MaxLogLines) {
+					Log.Dequeue();
 				}
 
 				if(line.Contains("status=listening", StringComparison.Ordinal)) {
@@ -314,7 +322,7 @@ namespace Mesen.Debugger.Utilities
 
 		private static void ServerProcess_Exited(object? sender, EventArgs e)
 		{
-			lock(_lock) {
+			lock(Lock) {
 				if(ReferenceEquals(_serverProcess, sender)) {
 					_isListening = false;
 					_isPipeConnected = false;

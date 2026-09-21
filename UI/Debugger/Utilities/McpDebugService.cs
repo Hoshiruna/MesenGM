@@ -31,7 +31,7 @@ namespace Mesen.Debugger.Utilities
 		private const int ToolTimeoutMs = 10000;
 		private const int ToolQueueTimeoutMs = 15000;
 
-		private static readonly HashSet<string> _supportedProtocolVersions = new(StringComparer.Ordinal) {
+		private static readonly HashSet<string> SupportedProtocolVersions = new(StringComparer.Ordinal) {
 			"2024-11-05",
 			"2025-03-26",
 			LatestProtocolVersion
@@ -109,7 +109,7 @@ namespace Mesen.Debugger.Utilities
 		private static string HandleInitialize(JsonNode id, JsonObject? parameters)
 		{
 			string requestedVersion = parameters?["protocolVersion"]?.GetValue<string>() ?? LatestProtocolVersion;
-			string protocolVersion = _supportedProtocolVersions.Contains(requestedVersion) ? requestedVersion : LatestProtocolVersion;
+			string protocolVersion = SupportedProtocolVersions.Contains(requestedVersion) ? requestedVersion : LatestProtocolVersion;
 
 			return MakeJsonRpcResult(id, new JsonObject {
 				["protocolVersion"] = protocolVersion,
