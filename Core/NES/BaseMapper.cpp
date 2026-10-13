@@ -634,7 +634,8 @@ void BaseMapper::Initialize(NesConsole* console, RomData& romData)
 	}
 
 	if(romData.WorkRamSize == -1) {
-		_workRamSize = HasBattery() ? 0 : GetWorkRamSize();
+		//Some boards need work RAM in addition to battery-backed save RAM.
+		_workRamSize = ForceWorkRamSize() || !HasBattery() ? GetWorkRamSize() : 0;
 		_hasDefaultWorkRam = _workRamSize > 0;
 	} else if(ForceWorkRamSize()) {
 		_workRamSize = GetWorkRamSize();
