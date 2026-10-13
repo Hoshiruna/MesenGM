@@ -24,14 +24,10 @@ protected:
 		_exRegs[2] = GetPrgPageCount() - 2;
 		_exRegs[3] = GetPrgPageCount() - 1;
 
-		//Set 4kb of work ram at $5000, mirrored
-		SetCpuMemoryMapping(0x5000, 0x7FFF, 0, PrgMemoryType::WorkRam);
-
 		MMC3::InitMapper();
 
-		if(GetSaveRamSize() == 0) {
-			SetCpuMemoryMapping(0x5000, 0x7FFF, 0, PrgMemoryType::WorkRam);
-		}
+		//The extra 4 KiB of work RAM is separate from RAM at $6000-$7FFF.
+		SetCpuMemoryMapping(0x5000, 0x5FFF, 0, PrgMemoryType::WorkRam);
 	}
 
 	void Serialize(Serializer& s) override
@@ -42,6 +38,11 @@ protected:
 
 	void WriteRegister(uint16_t addr, uint8_t value) override
 	{
+		if((addr & 0xE001) == 0xA001) {
+			//Ignore MMC3 write protection while retaining RAM enable.
+			value &= ~0x40;
+		}
+
 		if(addr == 0x8001 && (GetState().Reg8000 & 0x07) >= 6) {
 			_exRegs[(GetState().Reg8000 & 0x07) - 6] = value & (value >= 0x40 ? 0x4F : 0x3F);
 		}

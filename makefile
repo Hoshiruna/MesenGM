@@ -190,6 +190,14 @@ ifeq ($(MESENOS),osx)
 	endif
 endif
 
+ifeq ($(MESENOS),linux)
+	ifeq ($(USE_AOT),true)
+		LINUXPUBLISHFLAGS := -p:PublishAot=true -p:PublishTrimmed=true -p:SelfContained=true
+	else
+		LINUXPUBLISHFLAGS := -p:PublishAot=false -p:PublishTrimmed=false -p:SelfContained=false
+	endif
+endif
+
 all: ui
 
 ui: InteropDLL/$(OBJFOLDER)/$(SHAREDLIB)
@@ -199,7 +207,7 @@ ui: InteropDLL/$(OBJFOLDER)/$(SHAREDLIB)
 	#Called twice because the first call copies native libraries to the bin folder which need to be included in Dependencies.zip
 	#Don't run with AOT flags the first time to reduce build duration
 	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) -r $(MESENPLATFORM) --no-self-contained -p:PublishAot=false -p:PublishTrimmed=false
-	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) $(PUBLISHFLAGS)
+	cd UI && dotnet publish -c $(BUILD_TYPE) $(OPTIMIZEUI) $(PUBLISHFLAGS) $(LINUXPUBLISHFLAGS)
 
 core: InteropDLL/$(OBJFOLDER)/$(SHAREDLIB)
 
