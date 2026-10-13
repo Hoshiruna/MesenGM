@@ -22,6 +22,7 @@ namespace Mesen.Config
 	public partial class PreferencesConfig : BaseConfig<PreferencesConfig>
 	{
 		[ObservableProperty] public partial MesenTheme Theme { get; set; } = MesenTheme.Light;
+		[ObservableProperty] public partial string Language { get; set; } = "en";
 		[ObservableProperty] public partial bool AutomaticallyCheckForUpdates { get; set; } = true;
 		[ObservableProperty] public partial bool SingleInstance { get; set; } = true;
 		[ObservableProperty] public partial bool AutoLoadPatches { get; set; } = true;
@@ -90,6 +91,8 @@ namespace Mesen.Config
 		[ObservableProperty] public partial string SaveStateFolder { get; set; } = "";
 		[ObservableProperty] public partial string ScreenshotFolder { get; set; } = "";
 		[ObservableProperty] public partial string WaveFolder { get; set; } = "";
+
+		[ObservableProperty] public partial Dictionary<string, ConsoleType> RememberedBinFileConsoleTypes { get; set; } = new();
 
 		public PreferencesConfig()
 		{

@@ -1,0 +1,107 @@
+# MCP debugger server
+
+MesenGM can expose its debugger to local Model Context Protocol clients. The feature has two parts:
+
+- Mesen owns the debugger service and a local named pipe.
+- `MCPServer.exe` connects that pipe to either stdio or Streamable HTTP.
+
+The bridge is available on Windows builds. Several bridges can be connected at the same time. A bridge launched by an MCP client stays usable if Mesen is closed and reopened during the conversation. The HTTP bridge started from Mesen's **MCP Server** window exits automatically when that Mesen process ends.
+
+## Import the client configuration
+
+Download [mcp.json](mcp.json) and import it in a client that supports the `mcpServers` JSON format and Streamable HTTP. In Mesen, open **Debug > MCP Server** and select **Start** before connecting. The file uses the default port, `51234`; if you choose another port, update the URL in the file.
+
+Import support depends on the client. For clients without a JSON import option, use the commands below.
+
+## Connect through stdio
+
+Use stdio when the MCP client launches its own server process. The bridge starts immediately and answers `initialize` and `tools/list` on its own, so the client can finish its handshake before Mesen is open. Tool calls need a running Mesen and report a clear error until one is available.
+
+For Codex CLI:
+
+```powershell
+codex mcp add mesen-debugger -- "C:\path\to\MCPServer.exe" --stdio
+```
+
+For Claude Code in PowerShell, use `add-json` so `--stdio` is passed to the bridge instead of being parsed as a Claude option:
+
+```powershell
+$claudeConfig = @{
+    type = "stdio"
+    command = "C:\path\to\MCPServer.exe"
+    args = @("--stdio")
+}
+claude mcp add-json mesen-debugger ($claudeConfig | ConvertTo-Json -Compress)
+```
+
+Replace `C:\path\to\MCPServer.exe` with the full path to the `MCPServer.exe` next to `Mesen.exe`. The stdio bridge can run alongside the HTTP bridge and alongside other stdio clients.
+
+## Connect through HTTP
+
+Open **Debug > MCP Server**, choose a port, and select **Start**. The default endpoint is:
+
+```text
+http://127.0.0.1:51234/mcp/
+```
+
+For Codex CLI:
+
+```powershell
+codex mcp add mesen-debugger --url http://127.0.0.1:51234/mcp/
+```
+
+For Claude Code:
+
+```powershell
+claude mcp add --transport http mesen-debugger http://127.0.0.1:51234/mcp/
+```
+
+The endpoint listens only on the IPv4 loopback address. Stopping the HTTP bridge does not stop Mesen's debugger pipe.
+
+The **MCP Server** window shows the bridge's own status and log output, so a failed start is visible without a console window. **Show console window instead of log** launches the bridge in a separate console; the in-app log stays empty in that mode because the output goes to the console.
+
+## Tools
+
+| Tool | What it does | Changes emulator state |
+| --- | --- | --- |
+| `debugger_status` | Reports emulator and debugger status | No |
+| `get_rom_info` | Reports the loaded ROM and available CPU identifiers | No |
+| `get_cpu_state` | Reads CPU registers or the current program counter | No |
+| `get_ppu_state` | Reads scanline, cycle, and frame state | No |
+| `get_screen` | Returns the last rendered frame as a PNG image | No |
+| `get_memory_range` | Reads up to 4096 bytes from a memory region | No |
+| `search_memory` | Finds a byte pattern in a memory region | No |
+| `set_memory` | Writes up to 4096 bytes to a memory region | Yes |
+| `get_disassembly` | Disassembles code around an address | No |
+| `get_trace_tail` | Reads recent execution trace rows | No |
+| `get_debug_events` | Reads recent debugger events | No |
+| `set_breakpoints` | Replaces the current breakpoint list | Yes |
+| `step` | Advances debugger execution | Yes |
+| `resume` | Resumes execution | Yes |
+| `pause` | Stops after the next instruction | Yes |
+| `save_rom` | Writes the loaded ROM or an IPS patch to a file | Yes (writes a file) |
+
+`get_cpu_state` returns structured SNES, NES, and Game Boy registers. Other debugger-supported CPUs return their program counter. `get_ppu_state` currently supports SNES, NES, and Game Boy.
+
+`get_screen` returns the most recent frame produced by the video decoder as an MCP `image` content block (`image/png`), followed by a JSON text block with `width`, `height`, `byte_length`, and `frame_count`. By default the PNG is the console's native output with the current rotation applied. Pass `apply_video_filter: true` to include the user's scale or NTSC filter, or `include_base64: true` to also receive the PNG inside the structured result for clients that cannot display image blocks. The frame is whatever the decoder last produced, so while execution is stopped it shows the last completed frame.
+
+Genesis-specific state tools are not included yet because this branch does not contain the Genesis core and interop types from mesen2-expanded. They can be added without changing the transport layer once those types arrive.
+
+## Finding identifiers
+
+Call `get_rom_info` first. Its response includes the CPU identifiers and memory regions available for the loaded ROM. Each memory region has the numeric ID used by the memory tools, its API name, and its size. Invalid or unavailable regions are rejected with an error.
+
+Tool results contain both structured content and an equivalent JSON text block. This keeps them usable with clients that have not added structured tool-result support.
+
+## Local security
+
+The HTTP bridge binds to `127.0.0.1` and accepts browser origins only from localhost, `127.0.0.1`, or `[::1]`. It is not intended for network exposure.
+
+An authorized client can read ROM state, change memory, replace breakpoints, and control execution. Review a client's tool requests before granting it access to a session you care about.
+
+## Troubleshooting
+
+- If tool calls report that Mesen is not running, open Mesen and try the request again. The client does not need to restart the bridge.
+- If a tool call reports that Mesen did not answer in time, Mesen is paused in its own debugger or busy. Tool calls time out after 10 seconds so the client stays usable.
+- If HTTP startup fails, choose an unused port in **Debug > MCP Server**. The log panel in that window shows why the bridge stopped.
+- If debugger tools report that no ROM is loaded, load a game before calling them.

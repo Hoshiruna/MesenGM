@@ -153,13 +153,14 @@ private:
 	double GetFrameDelay();
 
 	void TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_ptr<IConsole>& console, bool useFileSignature);
-	template<typename T> void TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_ptr<IConsole>& console, bool useFileSignature);
+	void TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_ptr<IConsole>& console, ConsoleType consoleType);
+	template<typename T> void TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_ptr<IConsole>& console, bool useFileSignature, bool forceConsoleType = false);
 
 	void SaveBattery();
 
 	void InitConsole(unique_ptr<IConsole>& newConsole, ConsoleMemoryInfo originalConsoleMemory[], bool preserveRom);
 
-	bool InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool stopRom = true, bool forPowerCycle = false);
+	bool InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool stopRom = true, bool forPowerCycle = false, optional<ConsoleType> forcedConsoleType = std::nullopt);
 
 public:
 	Emulator();
@@ -195,7 +196,7 @@ public:
 
 	void OnBeforePause(bool clearAudioBuffer);
 
-	bool LoadRom(VirtualFile romFile, VirtualFile patchFile, bool stopRom = true, bool forPowerCycle = false);
+	bool LoadRom(VirtualFile romFile, VirtualFile patchFile, bool stopRom = true, bool forPowerCycle = false, optional<ConsoleType> forcedConsoleType = std::nullopt);
 	RomInfo& GetRomInfo() { return _rom; }
 	string GetHash(HashType type);
 	uint32_t GetCrc32();

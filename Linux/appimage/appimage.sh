@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 export PUBLISHFLAGS="-r linux-x64 -p:PublishSingleFile=true -p:PublishReadyToRun=true"
 make -j$(nproc) -O USE_AOT=true LTO=true STATICLINK=true SYSTEM_LIBEVDEV=false

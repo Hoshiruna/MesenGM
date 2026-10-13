@@ -109,10 +109,39 @@ namespace Mesen
 			return IntPtr.Zero;
 		}
 
+		private static FontManagerOptions GetFontManagerOptions()
+		{
+			string language = (ConfigManager.Config.Preferences.Language ?? "en").Trim().Replace('_', '-').ToLowerInvariant();
+			string[] fallbackFamilies;
+
+			if(language.StartsWith("zh")) {
+				fallbackFamilies = OperatingSystem.IsWindows()
+					? new string[] { "Microsoft YaHei UI", "Microsoft YaHei", "SimSun" }
+					: OperatingSystem.IsMacOS()
+						? new string[] { "PingFang SC", "Hiragino Sans GB" }
+						: new string[] { "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei" };
+			} else if(language.StartsWith("ja")) {
+				fallbackFamilies = OperatingSystem.IsWindows()
+					? new string[] { "Yu Gothic UI", "Meiryo UI", "Meiryo" }
+					: OperatingSystem.IsMacOS()
+						? new string[] { "Hiragino Sans", "YuGothic" }
+						: new string[] { "Noto Sans CJK JP", "Noto Sans JP" };
+			} else {
+				fallbackFamilies = Array.Empty<string>();
+			}
+
+			return new FontManagerOptions {
+				FontFallbacks = fallbackFamilies
+					.Select(fontFamily => new FontFallback { FontFamily = new FontFamily(fontFamily) })
+					.ToArray()
+			};
+		}
+
 		// Avalonia configuration, don't remove; also used by visual designer.
 		public static AppBuilder BuildAvaloniaApp()
 			 => AppBuilder.Configure<App>()
 					.UsePlatformDetect()
+					.With(GetFontManagerOptions())
 					.With(new Win32PlatformOptions { })
 					.With(new X11PlatformOptions {
 						EnableInputFocusProxy = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") == "gamescope",

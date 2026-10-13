@@ -39,17 +39,60 @@ namespace Mesen.Utilities
 				}
 			}
 
-			InternalLoadRom(romPath, patchPath);
+			ConsoleType? forcedConsoleType = null;
+			string? rememberedBinFileKey = null;
+			if(string.Equals(Path.GetExtension(romPath.FileName), "." + FileDialogHelper.BinExt, StringComparison.OrdinalIgnoreCase)) {
+				string configKey = GetBinFileConfigKey(romPath);
+				if(ConfigManager.Config.Preferences.RememberedBinFileConsoleTypes.TryGetValue(configKey, out ConsoleType rememberedConsoleType)) {
+					forcedConsoleType = rememberedConsoleType;
+				} else {
+					BinFileConsoleTypeSelection? selection = await SelectBinFileConsoleTypeWindow.Show(romPath);
+					if(selection == null) {
+						return;
+					}
+
+					forcedConsoleType = selection.ConsoleType;
+					if(selection.RememberSelection) {
+						rememberedBinFileKey = configKey;
+					}
+				}
+			}
+
+			InternalLoadRom(romPath, patchPath, forcedConsoleType, rememberedBinFileKey);
 		}
 
-		private static void InternalLoadRom(ResourcePath romPath, ResourcePath? patchPath)
+		private static string GetBinFileConfigKey(ResourcePath romPath)
+		{
+			string path = Path.GetFullPath(romPath.Path);
+			if(OperatingSystem.IsWindows()) {
+				path = path.ToLowerInvariant();
+			}
+
+			if(romPath.Compressed) {
+				string innerFile = romPath.InnerFile.Replace('\\', '/');
+				if(OperatingSystem.IsWindows()) {
+					innerFile = innerFile.ToLowerInvariant();
+				}
+				return path + "\x1F" + innerFile + "\x1F" + romPath.InnerFileIndex;
+			}
+
+			return path;
+		}
+
+		private static void InternalLoadRom(ResourcePath romPath, ResourcePath? patchPath, ConsoleType? forcedConsoleType = null, string? rememberedBinFileKey = null)
 		{
 			//Temporarily hide selection screen to allow displaying error messages
 			MainWindowViewModel.Instance.RecentGames.Visible = false;
 
 			Task.Run(() => {
 				//Run in another thread to prevent deadlocks etc. when emulator notifications are processed UI-side
-				if(EmuApi.LoadRom(romPath, patchPath)) {
+				bool loaded = forcedConsoleType.HasValue
+					? EmuApi.LoadRomWithConsoleType(romPath, patchPath, forcedConsoleType.Value)
+					: EmuApi.LoadRom(romPath, patchPath);
+				if(loaded) {
+					if(rememberedBinFileKey != null && forcedConsoleType.HasValue) {
+						ConfigManager.Config.Preferences.RememberedBinFileConsoleTypes[rememberedBinFileKey] = forcedConsoleType.Value;
+					}
 					ConfigManager.Config.RecentFiles.AddRecentFile(romPath, patchPath);
 					ConfigManager.Config.Save();
 				}

@@ -46,6 +46,7 @@ namespace Mesen.Config
 		[ObservableProperty] public partial NetplayConfig Netplay { get; set; } = new();
 		[ObservableProperty] public partial HistoryViewerConfig HistoryViewer { get; set; } = new();
 		[ObservableProperty] public partial MainWindowConfig MainWindow { get; set; } = new();
+		[ObservableProperty] public partial McpServerConfig McpServer { get; set; } = new();
 
 		public DefaultKeyMappingType DefaultKeyMappings { get; set; } = DefaultKeyMappingType.Xbox | DefaultKeyMappingType.ArrowKeys;
 

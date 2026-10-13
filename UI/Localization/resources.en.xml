@@ -838,6 +838,25 @@
 			<Control ID="btnOK">OK</Control>
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
+		<Form ID="McpServerWindow">
+			<Control ID="wndTitle">MCP Server</Control>
+			<Control ID="lblIntro">The debugger pipe is available while Mesen is open. Start the localhost HTTP bridge here, or run MCPServer.exe with --stdio from your MCP client.</Control>
+			<Control ID="lblPort">Port:</Control>
+			<Control ID="btnCopyUrl">Copy URL</Control>
+			<Control ID="lblUrl">URL:</Control>
+			<Control ID="lblStatus">Status:</Control>
+			<Control ID="lblLog">MCP activity log:</Control>
+			<Control ID="chkShowConsole">Show the MCPServer.exe console window (bridge output appears there)</Control>
+			<Control ID="statusStarting">HTTP bridge starting...</Control>
+			<Control ID="statusRunning">HTTP bridge running at {0}, connected to the debugger</Control>
+			<Control ID="statusRunningNoClient">HTTP bridge running at {0}, waiting for the first client request</Control>
+			<Control ID="statusStopped">HTTP bridge stopped</Control>
+			<Control ID="errorInvalidPort">Port must be between 1 and 65535.</Control>
+			<Control ID="btnStart">Start</Control>
+			<Control ID="btnStop">Stop</Control>
+			<Control ID="btnCopyLog">Copy Log</Control>
+			<Control ID="btnClose">Close</Control>
+		</Form>
 		<Form ID="CheatListWindow">
 			<Control ID="wndTitle">Cheats</Control>
 			<Control ID="tabCheats">Cheats</Control>
@@ -867,10 +886,10 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="AboutWindow">
-			<Control ID="wndTitle">About - MesenCE</Control>
-			<Control ID="lblName">Mesen Community Edition</Control>
+			<Control ID="wndTitle">About - MesenGM</Control>
+			<Control ID="lblName">MesenGM</Control>
 			<Control ID="lblWebsite">Website:</Control>
-			<Control ID="lblLink">github.com/nesdev-org/MesenCE</Control>
+			<Control ID="lblLink">github.com/Hoshiruna/MesenGM</Control>
 			<Control ID="lblVersion">Version:</Control>
 			<Control ID="lblBuildDate">Build Date:</Control>
 			<Control ID="lblCommitId">Commit ID:</Control>
@@ -906,7 +925,7 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="UpdatePromptWindow">
-			<Control ID="wndTitle">MesenCE Updater</Control>
+			<Control ID="wndTitle"> Updater</Control>
 			<Control ID="lblLatestVersion">Latest version:</Control>
 			<Control ID="lblInstalledVersion">Installed version:</Control>
 			<Control ID="lblNewVersionAvailable">A new version of Mesen is available</Control>
@@ -915,8 +934,8 @@
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
 		<Form ID="SetupWizardWindow">
-			<Control ID="wndTitle">MesenCE</Control>
-			<Control ID="lblMesen">MesenCE - Emulator</Control>
+			<Control ID="wndTitle"></Control>
+			<Control ID="lblMesen"> - Emulator</Control>
 			<Control ID="lblConfigWizard">Configuration</Control>
 			<Control ID="lblInitialSetup">Please take a moment to perform Mesen's initial setup.</Control>
 			<Control ID="lblStorageLocation">Data Storage Location</Control>
@@ -996,6 +1015,15 @@
 		<Form ID="SelectRomWindow">
 			<Control ID="wndTitle">Select rom...</Control>
 			<Control ID="lblSearch">Search:</Control>
+			<Control ID="btnOK">OK</Control>
+			<Control ID="btnCancel">Cancel</Control>
+		</Form>
+
+		<Form ID="SelectBinFileConsoleTypeWindow">
+			<Control ID="wndTitle">Select console type</Control>
+			<Control ID="lblPrompt">Select the console type to use when opening this .bin file.</Control>
+			<Control ID="lblConsoleType">Console type:</Control>
+			<Control ID="chkRememberSelection">Remember this selection for this .bin file</Control>
 			<Control ID="btnOK">OK</Control>
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
@@ -3645,6 +3673,7 @@ E
 			<Value ID="OpenSpriteViewer">Sprite Viewer</Value>
 			<Value ID="OpenPaletteViewer">Palette Viewer</Value>
 			<Value ID="OpenDebugSettings">Settings</Value>
+			<Value ID="OpenMcpServer">MCP Server</Value>
 
 			<Value ID="Tools">Tools</Value>
 			<Value ID="HistoryViewer">History Viewer</Value>

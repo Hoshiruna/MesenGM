@@ -190,3 +190,4 @@ packages/*
 
 TestHelper/*
 UI/Dependencies.zip
+UI/Properties/PublishProfiles/Release.pubxml

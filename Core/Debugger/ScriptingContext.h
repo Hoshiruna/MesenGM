@@ -7,6 +7,7 @@
 #include "Shared/EventType.h"
 
 class Debugger;
+class TrueTypeFont;
 struct lua_State;
 
 enum class CallbackType
@@ -56,7 +57,10 @@ private:
 
 protected:
 	string _scriptName;
+	string _scriptPath;
 	bool _initDone = false;
+	uint32_t _nextFontId = 1;
+	unordered_map<uint32_t, shared_ptr<TrueTypeFont>> _fonts;
 
 	vector<MemoryCallback> _callbacks[3];
 	vector<int> _eventCallbacks[(int)EventType::LastValue + 1];
@@ -75,6 +79,10 @@ public:
 
 	Debugger* GetDebugger();
 	string GetScriptName();
+	string GetScriptPath();
+	uint32_t AddFont(shared_ptr<TrueTypeFont> font);
+	shared_ptr<TrueTypeFont> GetFont(uint32_t fontId);
+	bool UnloadFont(uint32_t fontId);
 
 	void SetDrawSurface(ScriptDrawSurface surface) { _drawSurface = surface; }
 	ScriptDrawSurface GetDrawSurface() { return _drawSurface; }

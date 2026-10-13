@@ -1,0 +1,4 @@
+interface:
+  display_name: "MesenGM MCP Debugger"
+  short_description: "Inspect and debug games with MesenGM MCP tools"
+  default_prompt: "Use $mesengm-mcp to inspect the loaded game and investigate the issue through MesenGM's MCP debugger tools."

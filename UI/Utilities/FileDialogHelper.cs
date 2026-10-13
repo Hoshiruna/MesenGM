@@ -61,6 +61,7 @@ namespace Mesen.Utilities
 								"*.sms", "*.gg", "*.sg", "*.col",
 								"*.gba",
 								"*.ws", "*.wsc", "*.pc2",
+								"*.bin",
 								"*.zip", "*.7z",
 								"*.ips", "*.bps"
 							}

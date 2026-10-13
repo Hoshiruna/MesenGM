@@ -1,27 +1,27 @@
-# Mesen Community Edition
+# MesenGM
 
 Mesen is a multi-system emulator for Windows, Linux, and macOS. It supports NES, SNES, Game Boy (GB/SGB/GBC), Game Boy Advance, PC Engine, SMS/Game Gear, and WonderSwan (WS/WSC).
 
-This is a community-managed fork, created to maintain and expand this emulator into the future.
+This branch is a fork of MesenCE, created to explore the possibility of running Genesis/Megadrive on Mesen.
 
 ## Releases
 
-The latest stable version is available from the [releases page on GitHub](https://github.com/nesdev-org/MesenCE/releases).
+The latest stable version is available from the [releases page on GitHub]().
 
 ## Development Builds
 
-[![Mesen](https://github.com/nesdev-org/MesenCE/actions/workflows/build.yml/badge.svg)](https://github.com/nesdev-org/MesenCE/actions/workflows/build.yml?query=branch%3Amaster)
+[![Build Mesen](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml/badge.svg)](https://github.com/Hoshiruna/MesenGM/actions/workflows/build.yml)
 
-* [Windows](https://nightly.link/nesdev-org/MesenCE/workflows/build/master/Mesen%20%28Windows%20-%20net10.0%20-%20AoT%29.zip)
+* [Windows]()
   * Windows 7 or higher is required. Windows 7 users must use SP1 and have all updates installed.
-* [Linux x64](https://nightly.link/nesdev-org/MesenCE/workflows/build/master/Mesen%20%28Linux%20-%20ubuntu-22.04%20-%20clang_aot%29.zip)  (requires **SDL2**)  
-* [Linux ARM64](https://nightly.link/nesdev-org/MesenCE/workflows/build/master/Mesen%20%28Linux%20-%20ubuntu-22.04-arm%20-%20clang_aot%29.zip)  (requires **SDL2**)  
-* [macOS - Intel](https://nightly.link/nesdev-org/MesenCE/workflows/build/master/Mesen%20%28macOS%20-%20macos-15-intel%20-%20clang_aot%29.zip)  (requires **SDL2**)  
-* [macOS - Apple Silicon](https://nightly.link/nesdev-org/MesenCE/workflows/build/master/Mesen%20%28macOS%20-%20macos-15%20-%20clang_aot%29.zip)  (requires **SDL2**)  
+* [Linux x64]()  (requires **SDL2**)  
+* [Linux ARM64]()  (requires **SDL2**)  
+* [macOS - Intel]()  (requires **SDL2**)  
+* [macOS - Apple Silicon]()  (requires **SDL2**)  
 
 #### <ins>Notes</ins> ####
 
-* Other builds are also available in the [Actions](https://github.com/nesdev-org/MesenCE/actions/workflows/build.yml?query=branch%3Amaster) tab.
+* Other builds are also available in the [Actions]() tab.
 * **macOS**: Builds are self-signed and will require approval via Gatekeeper before they are able to be run.  
 * **SteamOS**: See [SteamOS.md](SteamOS.md)  
 
@@ -32,6 +32,18 @@ See [COMPILING.md](COMPILING.md)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Lua API documentation
+
+MesenGM has added Lua-style documentation, See [MesenGM Lua API Documentation](https://github.com/Hoshiruna/MesenGM-Lua-Documentation) for the Lua API documentation index.
+
+## MCP debugger server
+
+Windows builds include a local MCP bridge for debugger clients. Import [mcp.json](mcp.json) in a compatible client, then start the server from **Debug > MCP Server**. See [MCP_SERVER.md](MCP_SERVER.md) for setup, available tools, and security notes.
+
+## MCP and AI assistance disclaimer
+
+Before connecting an AI client, read the [MCP and AI assistance disclaimer](DISCLAIMER.md). You are responsible for reviewing debugger actions and for any data sent to third-party services.
 
 ## License
 

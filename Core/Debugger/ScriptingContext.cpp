@@ -54,6 +54,7 @@ ScriptingContext::~ScriptingContext()
 bool ScriptingContext::LoadScript(string scriptName, string path, string scriptContent, Debugger* debugger)
 {
 	_scriptName = scriptName;
+	_scriptPath = path;
 
 	int iErr = 0;
 	_lua = luaL_newstate();
@@ -229,6 +230,29 @@ Debugger* ScriptingContext::GetDebugger()
 string ScriptingContext::GetScriptName()
 {
 	return _scriptName;
+}
+
+string ScriptingContext::GetScriptPath()
+{
+	return _scriptPath;
+}
+
+uint32_t ScriptingContext::AddFont(shared_ptr<TrueTypeFont> font)
+{
+	uint32_t fontId = _nextFontId++;
+	_fonts.emplace(fontId, font);
+	return fontId;
+}
+
+shared_ptr<TrueTypeFont> ScriptingContext::GetFont(uint32_t fontId)
+{
+	auto font = _fonts.find(fontId);
+	return font == _fonts.end() ? nullptr : font->second;
+}
+
+bool ScriptingContext::UnloadFont(uint32_t fontId)
+{
+	return _fonts.erase(fontId) > 0;
 }
 
 template<typename T>
