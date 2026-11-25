@@ -180,7 +180,7 @@ jobs:
         compiler: [clang, clang_aot]
         platform: [
           {os: macos-15-intel, arch: x64},
-          {os: macos-15, arch: arm64}
+          {os: macos-26, arch: arm64}
         ]
         include:
           - compiler: clang
