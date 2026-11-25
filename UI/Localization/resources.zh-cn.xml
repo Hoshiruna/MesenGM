@@ -10,6 +10,15 @@
 			<Control ID="mnuHelp">帮助(_H)</Control>
 		</Form>
 
+		<Form ID="GenesisConfigView">
+			<Control ID="tpgGeneral">常规</Control>
+			<Control ID="tpgInput">输入</Control>
+			<Control ID="grpControllers">手柄</Control>
+			<Control ID="lblController1">端口 1：</Control>
+			<Control ID="lblController2">端口 2：</Control>
+			<Control ID="lblRegion">地区：</Control>
+		</Form>
+
 		<Form ID="ConfigWindow">
 			<Control ID="wndTitle">设置</Control>
 			<Control ID="tabAudio">音频</Control>
@@ -22,6 +31,7 @@
 			<Control ID="tabGba">GBA</Control>
 			<Control ID="tabPcEngine">PC Engine</Control>
 			<Control ID="tabSms">SMS</Control>
+			<Control ID="tabGenesis">Mega Drive</Control>
 			<Control ID="tabWs">WonderSwan</Control>
 			<Control ID="tabOtherConsoles">其他系统</Control>
 			<Control ID="tabPreferences">首选项</Control>
@@ -39,6 +49,7 @@
 			<Control ID="lblGba">GBA</Control>
 			<Control ID="lblPcEngine">PC Engine</Control>
 			<Control ID="lblSms">SMS</Control>
+			<Control ID="lblGenesis">Mega Drive</Control>
 			<Control ID="lblWs">WonderSwan</Control>
 		</Form>
 
@@ -274,7 +285,11 @@
 	</Messages>
 
 	<Enums>
+		<Enum ID="ControllerType">
+			<Value ID="GenesisController">Mega Drive 三键手柄</Value>
+		</Enum>
 		<Enum ID="ActionType">
+			<Value ID="Genesis">Mega Drive</Value>
 			<Value ID="OpenMcpServer">MCP 服务器</Value>
 		</Enum>
 		<Enum ID="MesenTheme">

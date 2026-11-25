@@ -10,7 +10,7 @@ public partial class GenesisConfig : BaseConfig<GenesisConfig>
 	[ObservableProperty] public partial ControllerConfig Port1 { get; set; } = new();
 	[ObservableProperty] public partial ControllerConfig Port2 { get; set; } = new();
 
-	[ValidValues(ConsoleRegion.Auto, ConsoleRegion.Ntsc, ConsoleRegion.Pal)]
+	[ValidValues(ConsoleRegion.Auto, ConsoleRegion.Ntsc, ConsoleRegion.NtscJapan, ConsoleRegion.Pal)]
 	[ObservableProperty] public partial ConsoleRegion Region { get; set; } = ConsoleRegion.Auto;
 
 	[ObservableProperty] public partial RamState RamPowerOnState { get; set; } = RamState.Random;

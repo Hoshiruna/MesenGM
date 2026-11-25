@@ -687,6 +687,15 @@
 			<Control ID="colBinding1">Keys</Control>
 		</Form>
 
+		<Form ID="GenesisConfigView">
+			<Control ID="tpgGeneral">General</Control>
+			<Control ID="tpgInput">Input</Control>
+			<Control ID="grpControllers">Controllers</Control>
+			<Control ID="lblController1">Port 1:</Control>
+			<Control ID="lblController2">Port 2:</Control>
+			<Control ID="lblRegion">Region:</Control>
+		</Form>
+
 		<Form ID="ConfigWindow">
 			<Control ID="wndTitle">Settings</Control>
 
@@ -700,6 +709,7 @@
 			<Control ID="tabGba">GBA</Control>
 			<Control ID="tabPcEngine">PC Engine</Control>
 			<Control ID="tabSms">SMS</Control>
+			<Control ID="tabGenesis">Genesis</Control>
 			<Control ID="tabWs">WonderSwan</Control>
 			<Control ID="tabOtherConsoles">Other systems</Control>
 			<Control ID="tabPreferences">Preferences</Control>
@@ -1104,6 +1114,7 @@
 			<Control ID="lblGba">GBA</Control>
 			<Control ID="lblPcEngine">PC Engine</Control>
 			<Control ID="lblSms">SMS</Control>
+			<Control ID="lblGenesis">Genesis</Control>
 			<Control ID="lblWs">WonderSwan</Control>
 		</Form>
 		
@@ -2095,6 +2106,7 @@ E
 			<Value ID="SmsController">SMS Controller</Value>
 			<Value ID="SmsLightPhaser">Light Phaser</Value>
 			<Value ID="ColecoVisionController">ColecoVision Controller</Value>
+			<Value ID="GenesisController">Genesis 3-Button Controller</Value>
 		</Enum>
 		<Enum ID="NesJissenMahjongButtons">
 			<Value ID="A">A</Value>
@@ -3731,6 +3743,7 @@ E
 			<Value ID="Gba">GBA</Value>
 			<Value ID="PcEngine">PC Engine</Value>
 			<Value ID="Sms">SMS</Value>
+			<Value ID="Genesis">Genesis</Value>
 			<Value ID="Ws">WonderSwan</Value>
 			<Value ID="OtherConsoles">Other systems</Value>
 

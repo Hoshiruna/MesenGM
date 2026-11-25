@@ -10,6 +10,15 @@
 			<Control ID="mnuHelp">ヘルプ(_H)</Control>
 		</Form>
 
+		<Form ID="GenesisConfigView">
+			<Control ID="tpgGeneral">一般</Control>
+			<Control ID="tpgInput">入力</Control>
+			<Control ID="grpControllers">コントローラー</Control>
+			<Control ID="lblController1">ポート 1:</Control>
+			<Control ID="lblController2">ポート 2:</Control>
+			<Control ID="lblRegion">地域:</Control>
+		</Form>
+
 		<Form ID="ConfigWindow">
 			<Control ID="wndTitle">設定</Control>
 			<Control ID="tabAudio">オーディオ</Control>
@@ -22,6 +31,7 @@
 			<Control ID="tabGba">GBA</Control>
 			<Control ID="tabPcEngine">PC Engine</Control>
 			<Control ID="tabSms">SMS</Control>
+			<Control ID="tabGenesis">メガドライブ</Control>
 			<Control ID="tabWs">WonderSwan</Control>
 			<Control ID="tabOtherConsoles">その他のシステム</Control>
 			<Control ID="tabPreferences">環境設定</Control>
@@ -39,6 +49,7 @@
 			<Control ID="lblGba">GBA</Control>
 			<Control ID="lblPcEngine">PC Engine</Control>
 			<Control ID="lblSms">SMS</Control>
+			<Control ID="lblGenesis">メガドライブ</Control>
 			<Control ID="lblWs">WonderSwan</Control>
 		</Form>
 
@@ -274,7 +285,11 @@
 	</Messages>
 
 	<Enums>
+		<Enum ID="ControllerType">
+			<Value ID="GenesisController">メガドライブ 3ボタンパッド</Value>
+		</Enum>
 		<Enum ID="ActionType">
+			<Value ID="Genesis">メガドライブ</Value>
 			<Value ID="OpenMcpServer">MCP サーバー</Value>
 		</Enum>
 		<Enum ID="MesenTheme">

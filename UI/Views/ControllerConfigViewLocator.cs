@@ -32,6 +32,7 @@ namespace Mesen.Views
 					ControllerType.PceController => new PceControllerView(),
 					ControllerType.PceAvenuePad6 => new PceAvenuePad6View(),
 					ControllerType.SmsController => new SmsControllerView(),
+					ControllerType.GenesisController => new GenesisController3ButtonsView(),
 					ControllerType.WsController => new WsControllerView(),
 					ControllerType.WsControllerVertical => new WsControllerVerticalView(),
 					ControllerType.Pcv2Controller => new WsPcv2ControllerView(),

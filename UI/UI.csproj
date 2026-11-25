@@ -297,6 +297,9 @@
     <Compile Update="Views\WsControllerView.axaml.cs">
       <DependentUpon>WsControllerView.axaml</DependentUpon>
     </Compile>
+    <Compile Update="Views\GenesisConfigView.axaml.cs">
+      <DependentUpon>GenesisConfigView.axaml</DependentUpon>
+    </Compile>
     <Compile Update="Views\WsConfigView.axaml.cs">
       <DependentUpon>WsConfigView.axaml</DependentUpon>
     </Compile>
@@ -428,6 +431,9 @@
     </Compile>
     <Compile Update="Views\SmsInputConfigView.axaml.cs">
       <DependentUpon>SmsInputConfigView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\GenesisController3ButtonsView.axaml.cs">
+      <DependentUpon>GenesisController3ButtonsView.axaml</DependentUpon>
     </Compile>
     <Compile Update="Views\SmsControllerView.axaml.cs">
       <DependentUpon>SmsControllerView.axaml</DependentUpon>

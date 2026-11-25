@@ -68,6 +68,7 @@ private:
 
 	RomFormat _romFormat = RomFormat::Genesis;
 	ConsoleRegion _region = ConsoleRegion::Ntsc;
+	ConsoleRegion _configuredRegion = ConsoleRegion::Auto;
 	GenesisRegion _genesisRegion = GenesisRegion::Ntsc;
 	GenesisModel _model = GenesisModel::Model1;
 	string _filename;

@@ -305,6 +305,10 @@ void GenesisConsole::RunFrame()
 		return;
 	}
 
+	if(_configuredRegion != _emu->GetSettings()->GetGenesisConfig().Region) {
+		UpdateRegion();
+	}
+
 	//Update controller devices and poll input state for this frame
 	_controlManager->UpdateControlDevices();
 	_controlManager->UpdateInputState();
@@ -569,8 +573,9 @@ void GenesisConsole::GetConsoleState(BaseState& state, ConsoleType consoleType)
 
 void GenesisConsole::UpdateRegion()
 {
-	GenesisConfig& cfg = _emu->GetSettings()->GetGenesisConfig();
-	switch(cfg.Region) {
+	const GenesisConfig& cfg = _emu->GetSettings()->GetGenesisConfig();
+	_configuredRegion = cfg.Region;
+	switch(_configuredRegion) {
 		case ConsoleRegion::Auto: {
 			//Parse ROM header region string at offset $1F0.
 			//Characters: J=Japan, U=USA, E=Europe, K=Korea, etc.
@@ -632,7 +637,8 @@ void GenesisConsole::UpdateRegion()
 			break;
 		}
 		case ConsoleRegion::Ntsc:
-			_region = ConsoleRegion::Ntsc;
+		case ConsoleRegion::NtscJapan:
+			_region = _configuredRegion;
 			_genesisRegion = GenesisRegion::Ntsc;
 			break;
 		case ConsoleRegion::Pal:
