@@ -180,7 +180,6 @@ void GenesisVdp::Hblank(bool line)
 
 void GenesisVdp::Vblank(bool line)
 {
-	uint8_t prev = _state.vblank;
 	uint8_t newTransitioned = _state.vblank ^ (line ? 1 : 0);
 	_irq.vblank.transitioned |= newTransitioned;
 	if(_state.vblank > (line ? 1 : 0)) {
@@ -1615,8 +1614,8 @@ void GenesisVdp::DMA::Synchronize(GenesisVdp& vdp)
 void GenesisVdp::DMA::Fetch(GenesisVdp& vdp)
 {
 	if(active && !read) {
-		auto address = ((mode & 1) << 23) | (source << 1);
-		data = vdp.DmaRead(address);
+		uint32_t sourceAddress = ((mode & 1) << 23) | (source << 1);
+		data = vdp.DmaRead(sourceAddress);
 		read = 1;
 	}
 }
@@ -2206,91 +2205,92 @@ void GenesisVdp::Sprite::Power()
 template<bool H40, bool Draw>
 void GenesisVdp::DAC::Pixel(GenesisVdp& vdp, uint32_t x)
 {
-	if(!Draw || !active) {
-		if(active) {
-			*active++ = Color(vdp._cram[vdp._io.backgroundColor], 1);
-		}
+	if(!active) {
 		return;
 	}
 
-	GenesisVdp::Pixel g = { vdp._io.backgroundColor, 0, 1 };
-	GenesisVdp::Pixel a = vdp._layerA.PixelAt(x);
-	GenesisVdp::Pixel b = vdp._layerB.PixelAt(x);
-	GenesisVdp::Pixel s = vdp._sprite.PixelAt(x);
+	if constexpr(!Draw) {
+		*active++ = Color(vdp._cram[vdp._io.backgroundColor], 1);
+	} else {
+		GenesisVdp::Pixel g = { vdp._io.backgroundColor, 0, 1 };
+		GenesisVdp::Pixel a = vdp._layerA.PixelAt(x);
+		GenesisVdp::Pixel b = vdp._layerB.PixelAt(x);
+		GenesisVdp::Pixel s = vdp._sprite.PixelAt(x);
 
-	if(disableLayers == 1) {
-		if(forceLayer == 1) {
-			g = s;
+		if(disableLayers == 1) {
+			if(forceLayer == 1) {
+				g = s;
+			}
+			if(forceLayer == 2) {
+				g = a;
+			}
+			if(forceLayer == 3) {
+				g = b;
+			}
+			a = {};
+			b = {};
+			s = {};
 		}
-		if(forceLayer == 2) {
-			g = a;
+
+		auto& bg = (a.above() || (a.solid() && !b.above())) ? a : b.solid() ? b :
+																									 g;
+		auto& fg = (s.above() || (s.solid() && !b.above() && !a.above())) ? s : bg;
+
+		auto pixel = fg;
+		uint8_t mode = 1; //0=shadow, 1=normal, 2=highlight
+
+		if(vdp._io.shadowHighlightEnable) {
+			mode = a.priority || b.priority;
+			if(&fg == &s) {
+				switch(s.color) {
+					case 0x0E:
+					case 0x1E:
+					case 0x2E: mode = 1; break;
+					case 0x3E:
+						mode += 1;
+						pixel = bg;
+						break;
+					case 0x3F:
+						mode = 0;
+						pixel = bg;
+						break;
+					default: mode |= s.priority; break;
+				}
+			}
 		}
-		if(forceLayer == 3) {
-			g = b;
+
+		//Debug register AND mask mode (ares dac.cpp:39-52):
+		//When disableLayers == 0 and forceLayer != 0, the forced layer acts as
+		//a bitwise AND mask on the composited pixel's 6-bit color. If the
+		//pixel is the backdrop (nothing was drawn), it is first replaced with
+		//the mask layer's pixel, then ANDed. This enables the layer-blending
+		//effects in Titan Overdrive 2 (logo screen, blue circles, etc.).
+		//Note: the sprite transparent-pixel quirk (PatternFetch writes palette
+		//bits into transparent sprite pixels) ensures the AND mask uses the
+		//last evaluated sprite's palette when all sprite pixels are transparent.
+		if(disableLayers == 0) {
+			if(forceLayer == 1) {
+				if(pixel.backdrop) {
+					pixel = s;
+				}
+				pixel.color &= s.color;
+			}
+			if(forceLayer == 2) {
+				if(pixel.backdrop) {
+					pixel = a;
+				}
+				pixel.color &= a.color;
+			}
+			if(forceLayer == 3) {
+				if(pixel.backdrop) {
+					pixel = b;
+				}
+				pixel.color &= b.color;
+			}
 		}
-		a = {};
-		b = {};
-		s = {};
+
+		*active++ = Color(vdp._cram[pixel.color & 0x3F], mode);
 	}
-
-	auto& bg = (a.above() || (a.solid() && !b.above())) ? a : b.solid() ? b :
-																								 g;
-	auto& fg = (s.above() || (s.solid() && !b.above() && !a.above())) ? s : bg;
-
-	auto pixel = fg;
-	uint8_t mode = 1; //0=shadow, 1=normal, 2=highlight
-
-	if(vdp._io.shadowHighlightEnable) {
-		mode = a.priority || b.priority;
-		if(&fg == &s) {
-			switch(s.color) {
-				case 0x0E:
-				case 0x1E:
-				case 0x2E: mode = 1; break;
-				case 0x3E:
-					mode += 1;
-					pixel = bg;
-					break;
-				case 0x3F:
-					mode = 0;
-					pixel = bg;
-					break;
-				default: mode |= s.priority; break;
-			}
-		}
-	}
-
-	//Debug register AND mask mode (ares dac.cpp:39-52):
-	//When disableLayers == 0 and forceLayer != 0, the forced layer acts as
-	//a bitwise AND mask on the composited pixel's 6-bit color. If the
-	//pixel is the backdrop (nothing was drawn), it is first replaced with
-	//the mask layer's pixel, then ANDed. This enables the layer-blending
-	//effects in Titan Overdrive 2 (logo screen, blue circles, etc.).
-	//Note: the sprite transparent-pixel quirk (PatternFetch writes palette
-	//bits into transparent sprite pixels) ensures the AND mask uses the
-	//last evaluated sprite's palette when all sprite pixels are transparent.
-	if(disableLayers == 0) {
-		if(forceLayer == 1) {
-			if(pixel.backdrop) {
-				pixel = s;
-			}
-			pixel.color &= s.color;
-		}
-		if(forceLayer == 2) {
-			if(pixel.backdrop) {
-				pixel = a;
-			}
-			pixel.color &= a.color;
-		}
-		if(forceLayer == 3) {
-			if(pixel.backdrop) {
-				pixel = b;
-			}
-			pixel.color &= b.color;
-		}
-	}
-
-	*active++ = Color(vdp._cram[pixel.color & 0x3F], mode);
 }
 
 template<bool H40>
@@ -2307,7 +2307,6 @@ void GenesisVdp::DAC::FillLeftBorder(GenesisVdp& vdp)
 		return;
 	}
 	uint32_t bgColor = Color(vdp._cram[vdp._io.backgroundColor], 1);
-	uint32_t count = vdp.H40() ? 320 : 256;
 	uint32_t borderLeft = vdp.H40() ? 13 * 4 : 13 * 5;
 	uint32_t visibleWidth = vdp.H40() ? 320 : 256;
 	//Left border fills up to the visible area
@@ -2322,7 +2321,6 @@ void GenesisVdp::DAC::FillRightBorder(GenesisVdp& vdp)
 		return;
 	}
 	uint32_t bgColor = Color(vdp._cram[vdp._io.backgroundColor], 1);
-	uint32_t visibleWidth = vdp.H40() ? 320 : 256;
 	//Right border fills remaining pixels after the visible area
 	//In our flat framebuffer, we just fill to the end of the line
 	uint32_t pos = (uint32_t)(active - vdp._framebuffer.data());

@@ -10,7 +10,7 @@ class GenesisConsole;
 // ares uses u128 (128-bit) for colors/extras; Mesen2 originally ported these
 // as uint64_t, which caused horizontal scroll artifacts ("shutters") because
 // the shift formula (index + hscroll_fine) * 4 can reach 120, exceeding 64 bits.
-#if defined(__SIZEOF_INT128__) || defined(__GNUC__) || defined(__clang__)
+#if defined(__SIZEOF_INT128__)
 using uint128_t = __uint128_t;
 #else
 struct uint128_t
@@ -19,6 +19,7 @@ struct uint128_t
 	uint64_t hi = 0;
 	uint128_t() = default;
 	uint128_t(int v) : lo(static_cast<uint64_t>(v)), hi(0) {}
+	uint128_t(uint64_t low, uint64_t high) : lo(low), hi(high) {}
 	uint128_t operator<<(int n) const
 	{
 		if(n == 0) {

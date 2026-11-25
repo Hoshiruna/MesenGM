@@ -3,19 +3,7 @@
 #include "Utilities/Serializer.h"
 #include <cstdio>
 
-#ifdef _WIN32
-	#include <windows.h>
-	// windows.h defines IN/OUT as macros which conflict with other code
-	#ifdef IN
-		#undef IN
-	#endif
-	#ifdef OUT
-		#undef OUT
-	#endif
-	#define GENESIS_DBG(fmt, ...) do { char _dbg_buf[512]; snprintf(_dbg_buf, sizeof(_dbg_buf), "[GENESIS] " fmt "\n", __VA_ARGS__); OutputDebugStringA(_dbg_buf); } while(0)
-#else
-	#define GENESIS_DBG(fmt, ...) fprintf(stderr, "[GENESIS] " fmt "\n", __VA_ARGS__)
-#endif
+#define GENESIS_DBG(fmt, ...) std::fprintf(stderr, "[GENESIS] " fmt "\n", __VA_ARGS__)
 
 // Ported from ares/component/eeprom/m24c/m24c.cpp.
 // All nall types (n1/n3/n8/u8/u32) are replaced with stdint types,
@@ -306,13 +294,6 @@ bool GenesisEeprom::storeByte()
 			}
 			if(_type <= Type::M24C16) {
 				return !Acknowledge;
-			}
-			//ares uses address.bit(10) here, but address is 8-bit so this is
-			//always 0. Ported faithfully (the lock bit logic is effectively
-			//dead code for the 8-bit address space).
-			if((_address >> 10) & 1) {
-				locked |= (_input >> 1) & 1;
-				return Acknowledge;
 			}
 			if(locked) {
 				return !Acknowledge;

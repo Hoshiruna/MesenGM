@@ -763,7 +763,7 @@ template<uint32_t Size> uint32_t GenesisM68K::ROL(uint32_t result, uint32_t shif
 	bool carry = false;
 	for(uint32_t i = 0; i < shift; i++) {
 		carry = result & msb<Size>();
-		result = result << 1 | carry;
+		result = result << 1 | static_cast<uint32_t>(carry);
 	}
 	_r.c = carry;
 	_r.v = 0;
@@ -795,7 +795,7 @@ template<uint32_t Size> uint32_t GenesisM68K::ROXL(uint32_t result, uint32_t shi
 	for(uint32_t i = 0; i < shift; i++) {
 		bool extend = carry;
 		carry = result & msb<Size>();
-		result = result << 1 | extend;
+		result = result << 1 | static_cast<uint32_t>(extend);
 	}
 	_r.c = carry;
 	_r.v = 0;
@@ -852,13 +852,13 @@ void GenesisM68K::instructionABCD(EffectiveAddress from, EffectiveAddress with)
 	if(((target ^ source ^ result) & 0x10) || (result & 0x0f) >= 0x0a) {
 		auto previous = result;
 		result += 0x06;
-		v |= ((~previous & 0x80) & (result & 0x80));
+		v = v || ((~previous & result) & 0x80) != 0;
 	}
 	if(result >= 0xa0) {
 		auto previous = result;
 		result += 0x60;
 		c = true;
-		v |= ((~previous & 0x80) & (result & 0x80));
+		v = v || ((~previous & result) & 0x80) != 0;
 	}
 	Prefetch();
 	Write<Byte>(with, result);
@@ -903,10 +903,11 @@ template<uint32_t Size> void GenesisM68K::instructionADDA(EffectiveAddress from,
 	auto target = Read<Long>(with);
 	Prefetch();
 	Write<Long>(with, source + target);
-	if(Size != Long || from.mode == DataRegisterDirect || from.mode == AddressRegisterDirect || from.mode == Immediate) {
-		BusIdle(4);
+	if constexpr(Size == Long) {
+		const bool fastSource = from.mode == DataRegisterDirect || from.mode == AddressRegisterDirect || from.mode == Immediate;
+		BusIdle(fastSource ? 4 : 2);
 	} else {
-		BusIdle(2);
+		BusIdle(4);
 	}
 }
 
@@ -1345,14 +1346,15 @@ void GenesisM68K::instructionDIVS(EffectiveAddress from, DataRegister with)
 		return Exception(ExDivisionByZero, VDivisionByZero);
 	}
 	if(divisor >> 31) {
-		divisor = -divisor;
+		divisor = 0u - divisor;
 	}
 	if(dividend >> 31) {
-		dividend = -dividend;
+		dividend = 0u - dividend;
 		BusIdle(2);
 	}
 	_r.c = 0;
-	if(_r.v = dividend >= divisor) {
+	_r.v = dividend >= divisor;
+	if(_r.v) {
 		_r.z = 0;
 		_r.n = 1;
 		BusIdle(12);
@@ -1364,18 +1366,20 @@ void GenesisM68K::instructionDIVS(EffectiveAddress from, DataRegister with)
 	uint32_t ticks = 12 + 8;
 	for(uint32_t i = 0; i < 15; i++) {
 		dividend = dividend << 1;
-		quotient = quotient << 1 | carry;
-		if(carry = dividend >= divisor) {
+		quotient = quotient << 1 | static_cast<uint16_t>(carry);
+		carry = dividend >= divisor;
+		if(carry) {
 			dividend -= divisor;
 		}
 		ticks += !carry ? 8 : 6;
 	}
-	quotient = quotient << 1 | carry;
+	quotient = quotient << 1 | static_cast<uint16_t>(carry);
 	dividend = dividend << 1;
-	if(carry = dividend >= divisor) {
+	carry = dividend >= divisor;
+	if(carry) {
 		dividend -= divisor;
 	}
-	quotient = quotient << 1 | carry;
+	quotient = quotient << 1 | static_cast<uint16_t>(carry);
 	ticks += 4;
 	if(odivisor >> 31) {
 		ticks += 4;
@@ -1383,7 +1387,7 @@ void GenesisM68K::instructionDIVS(EffectiveAddress from, DataRegister with)
 			if(quotient >> 15) {
 				_r.v = 1;
 			}
-			dividend = -dividend;
+			dividend = 0u - dividend;
 		} else {
 			quotient = -quotient;
 			if(quotient && !(quotient >> 15)) {
@@ -1396,7 +1400,7 @@ void GenesisM68K::instructionDIVS(EffectiveAddress from, DataRegister with)
 		if(quotient && !(quotient >> 15)) {
 			_r.v = 1;
 		}
-		dividend = -dividend;
+		dividend = 0u - dividend;
 	} else {
 		ticks += 2;
 		if(quotient >> 15) {
@@ -1427,7 +1431,8 @@ void GenesisM68K::instructionDIVU(EffectiveAddress from, DataRegister with)
 		return Exception(ExDivisionByZero, VDivisionByZero);
 	}
 	_r.c = 0;
-	if(_r.v = dividend >= divisor) {
+	_r.v = dividend >= divisor;
+	if(_r.v) {
 		_r.z = 0;
 		_r.n = 1;
 		BusIdle(6);
@@ -1440,19 +1445,21 @@ void GenesisM68K::instructionDIVU(EffectiveAddress from, DataRegister with)
 	bool force = dividend >> 31;
 	dividend = dividend << 1;
 	for(uint32_t i = 0; i < 15; i++) {
-		if(carry = force || dividend >= divisor) {
+		carry = force || dividend >= divisor;
+		if(carry) {
 			dividend -= divisor;
 		}
 		ticks += !carry ? 8 : !force ? 6 :
 												 4;
 		force = dividend >> 31;
 		dividend = dividend << 1;
-		quotient = quotient << 1 | carry;
+		quotient = quotient << 1 | static_cast<uint16_t>(carry);
 	}
-	if(carry = force || dividend >= divisor) {
+	carry = force || dividend >= divisor;
+	if(carry) {
 		dividend -= divisor;
 	}
-	quotient = quotient << 1 | carry;
+	quotient = quotient << 1 | static_cast<uint16_t>(carry);
 	_r.z = clip<Word>(quotient) == 0;
 	_r.n = sign<Word>(quotient) < 0;
 	BusIdle(ticks + 6);
@@ -1832,7 +1839,7 @@ void GenesisM68K::instructionMULS(EffectiveAddress from, DataRegister with)
 	auto result = (int16_t)source * (int16_t)target;
 	Prefetch();
 	auto cycles = std::bitset<32>((uint16_t)(source << 1) ^ source).count();
-	BusIdle(34 + cycles * 2);
+	BusIdle(34 + static_cast<uint32_t>(cycles) * 2);
 	Write<Long>(with, result);
 	_r.c = 0;
 	_r.v = 0;
@@ -1847,7 +1854,7 @@ void GenesisM68K::instructionMULU(EffectiveAddress from, DataRegister with)
 	auto result = source * target;
 	Prefetch();
 	auto cycles = std::bitset<32>(source).count();
-	BusIdle(34 + cycles * 2);
+	BusIdle(34 + static_cast<uint32_t>(cycles) * 2);
 	Write<Long>(with, result);
 	_r.c = 0;
 	_r.v = 0;
@@ -1867,13 +1874,13 @@ void GenesisM68K::instructionNBCD(EffectiveAddress with)
 		auto previous = result;
 		result -= 0x06;
 		c = (~previous & 0x80) & (result & 0x80);
-		v |= (previous & 0x80) & (~result & 0x80);
+		v = v || ((previous & ~result) & 0x80) != 0;
 	}
 	if(adjustHi) {
 		auto previous = result;
 		result -= 0x60;
 		c = true;
-		v |= (previous & 0x80) & (~result & 0x80);
+		v = v || ((previous & ~result) & 0x80) != 0;
 	}
 	Prefetch();
 	Write<Byte>(with, result);
@@ -2148,13 +2155,13 @@ void GenesisM68K::instructionSBCD(EffectiveAddress from, EffectiveAddress with)
 		auto previous = result;
 		result -= 0x06;
 		c = (~previous & 0x80) & (result & 0x80);
-		v |= (previous & 0x80) & (~result & 0x80);
+		v = v || ((previous & ~result) & 0x80) != 0;
 	}
 	if(adjustHi) {
 		auto previous = result;
 		result -= 0x60;
 		c = true;
-		v |= (previous & 0x80) & (~result & 0x80);
+		v = v || ((previous & ~result) & 0x80) != 0;
 	}
 	Prefetch();
 	Write<Byte>(with, result);
@@ -2228,10 +2235,11 @@ template<uint32_t Size> void GenesisM68K::instructionSUBA(EffectiveAddress from,
 	auto target = Read<Long>(to);
 	Prefetch();
 	Write<Long>(to, target - source);
-	if(Size != Long || from.mode == DataRegisterDirect || from.mode == AddressRegisterDirect || from.mode == Immediate) {
-		BusIdle(4);
+	if constexpr(Size == Long) {
+		const bool fastSource = from.mode == DataRegisterDirect || from.mode == AddressRegisterDirect || from.mode == Immediate;
+		BusIdle(fastSource ? 4 : 2);
 	} else {
-		BusIdle(2);
+		BusIdle(4);
 	}
 }
 

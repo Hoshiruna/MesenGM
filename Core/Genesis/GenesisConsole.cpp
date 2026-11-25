@@ -159,7 +159,6 @@ void GenesisConsole::ParseRomHeader(vector<uint8_t>& romData)
 	if(romData.size() > 0x1BB) {
 		if(romData[0x1B0] == 'R' && romData[0x1B1] == 'A') {
 			uint8_t typeByte1 = romData[0x1B2];
-			uint8_t typeByte2 = romData[0x1B3];
 			uint32_t sramStart = ((uint32_t)romData[0x1B4] << 24) | ((uint32_t)romData[0x1B5] << 16) |
 				((uint32_t)romData[0x1B6] << 8) | (uint32_t)romData[0x1B7];
 			uint32_t sramEnd = ((uint32_t)romData[0x1B8] << 24) | ((uint32_t)romData[0x1B9] << 16) |
@@ -482,7 +481,7 @@ PpuFrameInfo GenesisConsole::GetPpuFrame()
 		frame.FrameBuffer = (uint8_t*)blackFrame.data();
 		frame.Width = GenesisScreenWidthH40;
 		frame.Height = GenesisScreenHeightNtsc;
-		frame.FrameBufferSize = blackFrame.size() * sizeof(uint32_t);
+		frame.FrameBufferSize = static_cast<uint32_t>(blackFrame.size() * sizeof(uint32_t));
 		frame.FrameCount = _frameCount;
 		frame.ScanlineCount = frame.Height;
 		frame.FirstScanline = 0;
