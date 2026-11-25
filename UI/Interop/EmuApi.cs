@@ -208,7 +208,8 @@ namespace Mesen.Interop
 
 		Gba,
 
-		Ws
+		Ws,
+		Genesis
 	}
 
 	public enum ConsoleType
@@ -220,6 +221,7 @@ namespace Mesen.Interop
 		Sms = 4,
 		Gba = 5,
 		Ws = 6,
+		Genesis = 7,
 	}
 
 	public enum ByteCodeFormat

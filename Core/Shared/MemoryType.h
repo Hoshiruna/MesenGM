@@ -102,5 +102,11 @@ enum class MemoryType
 	WsInternalEeprom,
 	WsPort,
 
-	None
+	None,
+
+	GenesisM68KRam,
+	GenesisZ80Ram,
+	GenesisVdpVram,
+	GenesisCartridgeRom,
+	GenesisCartridgeRam
 };

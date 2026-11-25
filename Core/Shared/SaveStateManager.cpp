@@ -286,6 +286,9 @@ void SaveStateManager::SaveRecentGame(string romName, string romPath, string pat
 	romInfoStream << romName << std::endl;
 	romInfoStream << romPath << std::endl;
 	romInfoStream << patchPath << std::endl;
+	if(_emu->GetConsoleType() == ConsoleType::Genesis) {
+		romInfoStream << "console=genesis" << std::endl;
+	}
 
 	FrameInfo baseFrameSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
 	double aspectRatio = _emu->GetSettings()->GetAspectRatio(_emu->GetRegion(), baseFrameSize);
@@ -317,8 +320,17 @@ void SaveStateManager::LoadRecentGame(string filename, bool resetGame)
 	std::getline(romInfoStream, romPath);
 	std::getline(romInfoStream, patchPath);
 
+	optional<ConsoleType> forcedConsoleType;
+	string option;
+	while(std::getline(romInfoStream, option)) {
+		if(option == "console=genesis") {
+			forcedConsoleType = ConsoleType::Genesis;
+			break;
+		}
+	}
+
 	try {
-		if(_emu->LoadRom(romPath, patchPath)) {
+		if(_emu->LoadRom(romPath, patchPath, true, false, forcedConsoleType)) {
 			if(!resetGame) {
 				auto lock = _emu->AcquireLock();
 				SaveStateManager::LoadState(stateStream);

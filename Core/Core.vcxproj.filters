@@ -2595,6 +2595,42 @@
     <ClInclude Include="NES\Mappers\Nintendo\FnsMmc1.h">
       <Filter>NES\Mappers\Nintendo</Filter>
     </ClInclude>
+    <ClInclude Include="Genesis\GenesisConsole.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisControlManager.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisDefaultVideoFilter.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisEeprom.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisM68K.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisMemoryManager.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisPsg.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisTypes.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisVdp.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisYm2612.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\GenesisZ80.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\Input\GenesisController.h">
+      <Filter>Genesis\Input</Filter>
+    </ClInclude>
     <ClInclude Include="SMS\SmsConsole.h">
       <Filter>SMS</Filter>
     </ClInclude>
@@ -3149,6 +3185,33 @@
     <ClCompile Include="Shared\Video\SoftwareRenderer.cpp">
       <Filter>Shared\Video</Filter>
     </ClCompile>
+    <ClCompile Include="Genesis\GenesisConsole.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisControlManager.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisEeprom.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisM68K.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisMemoryManager.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisPsg.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisVdp.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisYm2612.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\GenesisZ80.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
     <ClCompile Include="SMS\SmsConsole.cpp">
       <Filter>SMS</Filter>
     </ClCompile>
@@ -3495,6 +3558,12 @@
     </Filter>
     <Filter Include="NES\Mappers\NSF">
       <UniqueIdentifier>{a27bca76-05ce-4940-a583-d50aef2668f8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Genesis">
+      <UniqueIdentifier>{4113fa1c-59f7-4a76-99eb-82cf3865b79d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Genesis\Input">
+      <UniqueIdentifier>{bf1ec3b9-0b4f-4171-8ebe-3074fed31791}</UniqueIdentifier>
     </Filter>
     <Filter Include="SMS">
       <UniqueIdentifier>{418fea7a-2766-464e-a553-e0647531fca2}</UniqueIdentifier>

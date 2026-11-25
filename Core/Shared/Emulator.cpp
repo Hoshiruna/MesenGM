@@ -34,6 +34,7 @@
 #include "Gameboy/Gameboy.h"
 #include "PCE/PceConsole.h"
 #include "SMS/SmsConsole.h"
+#include "Genesis/GenesisConsole.h"
 #include "GBA/GbaConsole.h"
 #include "WS/WsConsole.h"
 #include "Debugger/Debugger.h"
@@ -380,7 +381,11 @@ void Emulator::ReloadRom(bool forPowerCycle)
 	//Cast RomFile/PatchFile to string to make sure the file is reloaded from the disk
 	//In some scenarios, the file might be in memory already, which will prevent the reload
 	//from actually reloading the rom from the disk.
-	if(!LoadRom((string)info.RomFile, (string)info.PatchFile, !forPowerCycle, forPowerCycle)) {
+	std::optional<ConsoleType> forcedConsoleType;
+	if(info.Format == RomFormat::Genesis) {
+		forcedConsoleType = ConsoleType::Genesis;
+	}
+	if(!LoadRom((string)info.RomFile, (string)info.PatchFile, !forPowerCycle, forPowerCycle, forcedConsoleType)) {
 		if(forPowerCycle) {
 			//Power cycle failed (rom not longer exists, etc.), reset flag
 			//(otherwise power cycle will continue to be attempted on each frame)
@@ -613,6 +618,10 @@ void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_pt
 	TryLoadRom<SmsConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<GbaConsole>(romFile, result, console, useFileSignature);
 	TryLoadRom<WsConsole>(romFile, result, console, useFileSignature);
+	TryLoadRom<GenesisConsole>(romFile, result, console, useFileSignature);
+	if(useFileSignature && result == LoadRomResult::UnknownType && romFile.GetFileExtension() == ".bin" && GenesisConsole::HasBinRomHeader(romFile)) {
+		TryLoadRom<GenesisConsole>(romFile, result, console, false, true);
+	}
 }
 
 void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_ptr<IConsole>& console, ConsoleType consoleType)
@@ -625,6 +634,7 @@ void Emulator::TryLoadRom(VirtualFile& romFile, LoadRomResult& result, unique_pt
 		case ConsoleType::Sms: TryLoadRom<SmsConsole>(romFile, result, console, false, true); break;
 		case ConsoleType::Gba: TryLoadRom<GbaConsole>(romFile, result, console, false, true); break;
 		case ConsoleType::Ws: TryLoadRom<WsConsole>(romFile, result, console, false, true); break;
+		case ConsoleType::Genesis: TryLoadRom<GenesisConsole>(romFile, result, console, false, true); break;
 	}
 }
 
@@ -1152,7 +1162,7 @@ void Emulator::InitDebugger()
 	if(!_debugger) {
 		//Lock to make sure we don't try to start debuggers in 2 separate threads at once
 		auto lock = _debuggerLock.AcquireSafe();
-		if(!_debugger) {
+		if(!_debugger && GetConsoleType() != ConsoleType::Genesis) {
 			BlockDebuggerRequests();
 			ResetDebugger(true);
 			_blockDebuggerRequestCount--;

@@ -190,6 +190,7 @@ namespace Mesen.Interop
 				CpuType.Sms => ConsoleType.Sms,
 				CpuType.Gba => ConsoleType.Gba,
 				CpuType.Ws => ConsoleType.Ws,
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => ConsoleType.Genesis,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}

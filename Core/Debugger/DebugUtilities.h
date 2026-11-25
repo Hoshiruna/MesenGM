@@ -181,6 +181,15 @@ public:
 			case MemoryType::WsPort:
 				return CpuType::Ws;
 
+			case MemoryType::GenesisM68KRam:
+			case MemoryType::GenesisVdpVram:
+			case MemoryType::GenesisCartridgeRom:
+			case MemoryType::GenesisCartridgeRam:
+				return CpuType::GenesisM68K;
+
+			case MemoryType::GenesisZ80Ram:
+				return CpuType::GenesisZ80;
+
 			default:
 				throw std::runtime_error("Invalid CPU type");
 		}
@@ -303,7 +312,7 @@ public:
 
 	static constexpr CpuType GetLastCpuType()
 	{
-		return CpuType::Ws;
+		return (CpuType)(CpuTypeUtilities::GetCpuTypeCount() - 1);
 	}
 
 	static string AddressToHex(CpuType cpuType, int32_t address)
@@ -324,6 +333,6 @@ public:
 
 	static constexpr int GetMemoryTypeCount()
 	{
-		return (int)MemoryType::None + 1;
+		return (int)MemoryType::GenesisCartridgeRam + 1;
 	}
 };

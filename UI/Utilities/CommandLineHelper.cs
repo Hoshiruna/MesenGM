@@ -130,7 +130,7 @@ public class CommandLineHelper
 
 	public void ProcessPostLoadCommandSwitches(MainWindow wnd)
 	{
-		if(LuaScriptsToLoad.Count > 0) {
+		if(LuaScriptsToLoad.Count > 0 && EmuApi.GetRomInfo().ConsoleType.SupportsDebugger()) {
 			foreach(string luaScript in LuaScriptsToLoad) {
 				ScriptWindow? existingWnd = DebugWindowManager.GetDebugWindow<ScriptWindow>(wnd => !string.IsNullOrWhiteSpace(wnd.Model.FilePath) && Path.GetFullPath(wnd.Model.FilePath) == Path.GetFullPath(luaScript));
 				if(existingWnd != null) {

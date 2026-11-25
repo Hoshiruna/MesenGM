@@ -342,7 +342,10 @@ namespace Mesen.Debugger.Utilities
 			}
 
 			try {
-				EnsureRomLoaded();
+				RomInfo romInfo = EnsureRomLoaded();
+				if(!romInfo.ConsoleType.SupportsDebugger() && toolName is not ("debugger_status" or "get_rom_info" or "get_screen")) {
+					return ToolError(id, "Mega Drive debugging is unavailable.");
+				}
 				return toolName switch {
 					"debugger_status" => ToolSuccess(id, GetDebuggerStatus()),
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),

@@ -69,7 +69,8 @@ namespace Mesen.Windows
 			new(ConsoleType.PcEngine, "PC Engine / TurboGrafx-16"),
 			new(ConsoleType.Sms, "Master System / Game Gear / SG-1000 / ColecoVision"),
 			new(ConsoleType.Gba, "Game Boy Advance"),
-			new(ConsoleType.Ws, "WonderSwan")
+			new(ConsoleType.Ws, "WonderSwan"),
+			new(ConsoleType.Genesis, "Mega Drive / Genesis")
 		};
 
 		[ObservableProperty] public partial BinFileConsoleTypeOption? SelectedConsoleType { get; set; }

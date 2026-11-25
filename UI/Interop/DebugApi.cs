@@ -689,6 +689,12 @@ namespace Mesen.Interop
 		WsPort,
 
 		None,
+
+		GenesisM68KRam,
+		GenesisZ80Ram,
+		GenesisVdpVram,
+		GenesisCartridgeRom,
+		GenesisCartridgeRam,
 	}
 
 	[StructLayout(LayoutKind.Sequential)]
@@ -1558,7 +1564,9 @@ namespace Mesen.Interop
 		Pce,
 		Sms,
 		Gba,
-		Ws
+		Ws,
+		GenesisM68K,
+		GenesisZ80
 	}
 
 	public enum StepType
