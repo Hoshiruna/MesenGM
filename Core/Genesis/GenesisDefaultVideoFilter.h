@@ -3,46 +3,36 @@
 #include "Shared/Video/BaseVideoFilter.h"
 #include "Genesis/GenesisTypes.h"
 
-class Emulator;
-class GenesisConsole;
-
 class GenesisDefaultVideoFilter : public BaseVideoFilter
 {
-private:
-	GenesisConsole* _console = nullptr;
-
 protected:
-	FrameInfo GetFrameInfo() override
+	void ApplyFilter(uint16_t* ppuOutputBuffer) override
 	{
-		FrameInfo frameInfo = _baseFrameInfo;
+		//The VDP writes ARGB pixels with an H40 stride in both modes.
+		const uint32_t* input = reinterpret_cast<const uint32_t*>(ppuOutputBuffer);
+		uint32_t* output = GetOutputBuffer();
 		OverscanDimensions overscan = GetOverscan();
-		frameInfo.Width -= overscan.Left + overscan.Right;
-		frameInfo.Height -= overscan.Top + overscan.Bottom;
-		return frameInfo;
+		uint32_t sourceWidth = _baseFrameInfo.Width;
+		for(uint32_t y = 0; y < _frameInfo.Height; y++) {
+			const uint32_t* sourceRow = input + (y + overscan.Top) * GenesisScreenWidthH40;
+			uint32_t* outputRow = output + y * _frameInfo.Width;
+			if(sourceWidth == GenesisScreenWidthH40) {
+				memcpy(outputRow, sourceRow + overscan.Left, _frameInfo.Width * sizeof(uint32_t));
+			} else {
+				//Sample H32 at the center of each output pixel after cropping in display coordinates.
+				for(uint32_t x = 0; x < _frameInfo.Width; x++) {
+					uint32_t sourceX = ((x + overscan.Left) * sourceWidth + sourceWidth / 2) / GenesisScreenWidthH40;
+					outputRow[x] = sourceRow[sourceX];
+				}
+			}
+		}
 	}
 
 public:
-	GenesisDefaultVideoFilter(Emulator* emu, GenesisConsole* console) : BaseVideoFilter(emu)
+	using BaseVideoFilter::BaseVideoFilter;
+
+	FrameInfo GetDisplayFrameInfo() const override
 	{
-		_console = console;
-	}
-
-	void ApplyFilter(uint16_t* ppuOutputBuffer) override
-	{
-		//Genesis VDP outputs 32-bit ARGB pixels directly.
-		//The VDP framebuffer always uses a 320-pixel stride (MaxWidth),
-		//even in H32 (256-wide) mode, so we must use 320 as the input stride.
-		uint32_t* in = (uint32_t*)ppuOutputBuffer;
-		uint32_t* out = GetOutputBuffer();
-
-		OverscanDimensions overscan = GetOverscan();
-		FrameInfo frame = _frameInfo;
-
-		constexpr uint32_t inStride = 320; //GenesisVdp::MaxWidth
-		for(uint32_t y = 0; y < frame.Height; y++) {
-			uint32_t* src = in + (y + overscan.Top) * inStride + overscan.Left;
-			uint32_t* dst = out + y * frame.Width;
-			memcpy(dst, src, frame.Width * sizeof(uint32_t));
-		}
+		return { GenesisScreenWidthH40, _baseFrameInfo.Height };
 	}
 };

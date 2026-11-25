@@ -496,7 +496,7 @@ PpuFrameInfo GenesisConsole::GetPpuFrame()
 
 BaseVideoFilter* GenesisConsole::GetVideoFilter(bool getDefaultFilter)
 {
-	return new GenesisDefaultVideoFilter(_emu, this);
+	return new GenesisDefaultVideoFilter(_emu);
 }
 
 uint64_t GenesisConsole::GetMasterClock()

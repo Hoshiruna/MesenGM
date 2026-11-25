@@ -93,16 +93,10 @@ void VideoDecoder::DecodeFrame(bool forRewind)
 	UpdateVideoFilter();
 
 	bool isAudioPlayer = _emu->GetAudioPlayerHud() != nullptr;
-	if(isAudioPlayer) {
-		//When an audio file is loaded, force base resolution to 256x240 for all consoles
-		_baseFrameSize.Width = 256;
-		_baseFrameSize.Height = 240;
-	} else {
-		_baseFrameSize.Width = _frame.Width;
-		_baseFrameSize.Height = _frame.Height;
-	}
-
-	_videoFilter->SetBaseFrameInfo(_baseFrameSize);
+	//When an audio file is loaded, force base resolution to 256x240 for all consoles
+	FrameInfo sourceFrameSize = isAudioPlayer ? FrameInfo { 256, 240 } : FrameInfo { _frame.Width, _frame.Height };
+	_videoFilter->SetBaseFrameInfo(sourceFrameSize);
+	_baseFrameSize = _videoFilter->GetDisplayFrameInfo();
 	FrameInfo frameSize = _videoFilter->SendFrame((uint16_t*)_frame.FrameBuffer, _frame.FrameNumber, _frame.VideoPhase, _frame.Data, true, _frame);
 
 	uint32_t* outputBuffer = _videoFilter->GetOutputBuffer();
@@ -248,7 +242,7 @@ void VideoDecoder::TakeScreenshot(string romName)
 void VideoDecoder::TakeScreenshot(std::stringstream& stream, bool applyVideoFilter)
 {
 	if(_videoFilter) {
-		//VideoFilterType::None skips the scale filter so the PNG keeps the console's native resolution
+		//VideoFilterType::None keeps the base filter's output size.
 		_videoFilter->TakeScreenshot(applyVideoFilter ? _videoFilterType : VideoFilterType::None, "", &stream);
 	}
 }

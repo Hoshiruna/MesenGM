@@ -1564,7 +1564,7 @@ bool GenesisVdp::Prefetch::Run(GenesisVdp& vdp)
 		uint16_t addr = (vdp._command.address >> 1) & 0x3F;
 		uint16_t cramR = vdp._cram[addr];
 		slot.data = ((cramR & 7) << 1) | (((cramR >> 3) & 7) << 5) | (((cramR >> 6) & 7) << 9);
-		slot.data = slot.data & 0x0EEE | vdp._fifo.slots[0].data & ~0x0EEE;
+		slot.data = (slot.data & 0x0EEE) | (vdp._fifo.slots[0].data & ~0x0EEE);
 		vdp._command.ready = 1;
 		return true;
 	}
