@@ -29,7 +29,11 @@ private:
 		uint8_t control = 0x00; //control register: bit6=TH direction
 		uint8_t dataLatch = 0x7F; //data latch (written by M68K)
 		uint8_t dataLines = 0x7F; //current data line state
+
+		uint8_t GetThLevel() const { return (control & 0x40) ? dataLatch & 0x40 : 0x40; }
 	} _ports[3];
+
+	void UpdateTh(uint8_t port, bool wroteData);
 
 public:
 	GenesisControlManager(Emulator* emu, GenesisConsole* console);
@@ -37,6 +41,7 @@ public:
 	shared_ptr<BaseControlDevice> CreateControllerDevice(ControllerType type, uint8_t port) override;
 
 	void UpdateControlDevices() override;
+	void ResetControllerHandshakes();
 
 	//Called by GenesisMemoryManager for M68K I/O reads/writes.
 	//Port index: 0=port1, 1=port2, 2=extension.

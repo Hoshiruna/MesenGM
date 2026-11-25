@@ -295,6 +295,7 @@ void GenesisConsole::Reset()
 	}
 	_frameCount = 0;
 	_masterClock = 0;
+	_controlManager->ResetControllerHandshakes();
 	UpdateRegion();
 }
 

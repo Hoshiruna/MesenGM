@@ -21,7 +21,8 @@ namespace Mesen.ViewModels
 
 		public Enum[] AvailableControllerTypes => new Enum[] {
 			ControllerType.None,
-			ControllerType.GenesisController
+			ControllerType.GenesisController,
+			ControllerType.GenesisController6Buttons
 		};
 
 		public GenesisConfigViewModel()

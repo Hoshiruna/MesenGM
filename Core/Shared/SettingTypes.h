@@ -278,7 +278,8 @@ enum class ControllerType
 	WsControllerVertical,
 	Pcv2Controller,
 
-	GenesisController
+	GenesisController,
+	GenesisController6Buttons
 };
 
 struct KeyMapping

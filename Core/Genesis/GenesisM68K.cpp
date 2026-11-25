@@ -4018,8 +4018,6 @@ template void GenesisM68K::instructionEOR<GenesisM68K::Long>(DataRegister, Effec
 template void GenesisM68K::instructionEORI<GenesisM68K::Byte>(EffectiveAddress);
 template void GenesisM68K::instructionEORI<GenesisM68K::Word>(EffectiveAddress);
 template void GenesisM68K::instructionEORI<GenesisM68K::Long>(EffectiveAddress);
-template void GenesisM68K::instructionEXT<GenesisM68K::Word>(DataRegister);
-template void GenesisM68K::instructionEXT<GenesisM68K::Long>(DataRegister);
 template void GenesisM68K::instructionLSL<GenesisM68K::Byte>(uint8_t, DataRegister);
 template void GenesisM68K::instructionLSL<GenesisM68K::Word>(uint8_t, DataRegister);
 template void GenesisM68K::instructionLSL<GenesisM68K::Long>(uint8_t, DataRegister);

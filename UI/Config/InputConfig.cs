@@ -418,6 +418,7 @@ namespace Mesen.Config
 		Pcv2Controller,
 
 		GenesisController,
+		GenesisController6Buttons,
 	}
 
 	public static class ControllerTypeExtensions
@@ -444,6 +445,7 @@ namespace Mesen.Config
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
 				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 				case ControllerType.Pachinko:
 				case ControllerType.FcnsController:
 					return true;
@@ -475,6 +477,7 @@ namespace Mesen.Config
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
 				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 					return true;
 			}
 
@@ -526,6 +529,7 @@ namespace Mesen.Config
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
 				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 					return true;
 			}
 

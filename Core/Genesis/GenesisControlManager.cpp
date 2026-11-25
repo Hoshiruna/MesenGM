@@ -27,7 +27,8 @@ shared_ptr<BaseControlDevice> GenesisControlManager::CreateControllerDevice(Cont
 		default:
 		case ControllerType::None: break;
 		case ControllerType::GenesisController:
-			device.reset(new GenesisController(_emu, port, keys));
+		case ControllerType::GenesisController6Buttons:
+			device = std::make_shared<GenesisController>(_emu, _console, type, port, keys, port >= 3 || _ports[port].GetThLevel() != 0);
 			break;
 	}
 
@@ -53,6 +54,15 @@ void GenesisControlManager::UpdateControlDevices()
 	}
 
 	_prevConfig = cfg;
+}
+
+void GenesisControlManager::ResetControllerHandshakes()
+{
+	for(shared_ptr<BaseControlDevice>& device : _controlDevices) {
+		if(device->GetControllerType() == ControllerType::GenesisController6Buttons) {
+			static_cast<GenesisController*>(device.get())->ResetHandshake();
+		}
+	}
 }
 
 uint8_t GenesisControlManager::ReadPort(uint8_t port)
@@ -90,15 +100,8 @@ void GenesisControlManager::WritePort(uint8_t port, uint8_t data)
 	if(port >= 3) {
 		return;
 	}
-	PortState& ps = _ports[port];
-	ps.dataLatch = data & 0x7F;
-
-	//Forward TH line to connected controller device (bit 6)
-	for(shared_ptr<BaseControlDevice>& device : _controlDevices) {
-		if(device->IsConnected() && device->GetPort() == port) {
-			device->WriteRam(0, data);
-		}
-	}
+	_ports[port].dataLatch = data & 0x7F;
+	UpdateTh(port, true);
 }
 
 void GenesisControlManager::WriteControl(uint8_t port, uint8_t data)
@@ -107,6 +110,21 @@ void GenesisControlManager::WriteControl(uint8_t port, uint8_t data)
 		return;
 	}
 	_ports[port].control = data & 0x7F;
+	UpdateTh(port, false);
+}
+
+void GenesisControlManager::UpdateTh(uint8_t port, bool wroteData)
+{
+	const PortState& state = _ports[port];
+	for(shared_ptr<BaseControlDevice>& device : _controlDevices) {
+		if(device->IsConnected() && device->GetPort() == port) {
+			if(device->GetControllerType() == ControllerType::GenesisController6Buttons) {
+				device->WriteRam(0, state.GetThLevel());
+			} else if(wroteData) {
+				device->WriteRam(0, state.dataLatch);
+			}
+		}
+	}
 }
 
 void GenesisControlManager::Serialize(Serializer& s)
