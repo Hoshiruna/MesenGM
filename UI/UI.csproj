@@ -5,11 +5,11 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
-    <AssemblyName>Mesen</AssemblyName>
+    <AssemblyName>MesenGM</AssemblyName>
     <RootNamespace>Mesen</RootNamespace>
     <StartupObject>Mesen.Program</StartupObject>
-    <Version>2.2.1</Version>
-    <FileVersion>2.2.1</FileVersion>
+    <Version>0.0.1</Version>
+    <FileVersion>0.0.1</FileVersion>
     <Copyright>(C) 2014-2026 Sour</Copyright>
   </PropertyGroup>
 	<PropertyGroup>

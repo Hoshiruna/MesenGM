@@ -827,8 +827,6 @@ static inline void setPair(uint8_t& hi, uint8_t& lo, uint16_t v)
 	hi = v >> 8;
 	lo = v & 0xFF;
 }
-static inline void setPair16(uint16_t& r, uint16_t v)
-{ r = v; }
 
 void GenesisZ80::Instruction(uint8_t code)
 {
