@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Resources>
 	<Forms>
+		<Form ID="TilemapViewerWindow">
+			<Control ID="wndGenesisTitle">VDP ビューアー</Control>
+			<Control ID="tabGenesisSprites">スプライト</Control>
+			<Control ID="lblGenesisSpriteTable">スプライトテーブル</Control>
+			<Control ID="lblGenesisSelectedSprite">選択中のスプライト</Control>
+			<Control ID="lblGenesisWaiting">フレームの完了を待っています…</Control>
+			<Control ID="lblGenesisFrame">フレーム {0}</Control>
+			<Control ID="lblGenesisSpriteFrame">フレーム {0} · フレーム終了時のスプライトテーブル</Control>
+		</Form>
 		<Form ID="MainMenuView">
 			<Control ID="mnuFile">ファイル(_F)</Control>
 			<Control ID="mnuGame">ゲーム(_G)</Control>
@@ -12,11 +21,22 @@
 
 		<Form ID="GenesisConfigView">
 			<Control ID="tpgGeneral">一般</Control>
+			<Control ID="tpgAudio">オーディオ</Control>
+			<Control ID="tpgEmulation">エミュレーション</Control>
 			<Control ID="tpgInput">入力</Control>
+			<Control ID="tpgVideo">映像</Control>
 			<Control ID="grpControllers">コントローラー</Control>
 			<Control ID="lblController1">ポート 1:</Control>
 			<Control ID="lblController2">ポート 2:</Control>
 			<Control ID="lblRegion">地域:</Control>
+			<Control ID="grpVolume">音量</Control>
+			<Control ID="lblYm2612Volume">YM2612（FM）</Control>
+			<Control ID="lblPsgVolume">PSG</Control>
+			<Control ID="lblDeveloperSettings">開発者向け設定</Control>
+			<Control ID="lblRamPowerOnState">電源投入時の RAM の状態:</Control>
+			<Control ID="lblOverscan">オーバースキャン</Control>
+			<Control ID="lblOverscanNtsc">NTSC</Control>
+			<Control ID="lblOverscanPal">PAL</Control>
 		</Form>
 
 		<Form ID="ConfigWindow">
@@ -229,6 +249,9 @@
 	</Forms>
 
 	<Messages>
+		<Message ID="GenesisViewerWaitingForFrame">フレームの完了を待っています…</Message>
+		<Message ID="GenesisTileViewerFrame">フレーム {0} · VRAM {1} KiB · 8×{2} タイル</Message>
+		<Message ID="GenesisPaletteViewerFrame">フレーム {0} · CRAM</Message>
 		<Message ID="LastSession">前回のセッション</Message>
 		<Message ID="AutoSave">自動保存</Message>
 		<Message ID="SlotNumber">スロット #{0}</Message>

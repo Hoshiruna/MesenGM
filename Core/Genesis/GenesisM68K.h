@@ -23,6 +23,7 @@ public:
 
 	//Cycle accounting — BusIdle/BusWait call this to accumulate cycles.
 	void AddCycles(uint32_t cycles) { _cycleAccum += cycles; }
+	uint32_t GetInstructionCycles() const { return _cycleAccum; }
 
 	//Bus interface callbacks - set by GenesisMemoryManager.
 	//idle/wait: consume master-clock cycles.

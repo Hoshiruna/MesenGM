@@ -990,6 +990,8 @@ namespace Mesen.ViewModels
 			Func<bool> isNesFormat = () => MainWindow.RomInfo.ConsoleType == ConsoleType.Nes && (MainWindow.RomInfo.Format == RomFormat.iNes || MainWindow.RomInfo.Format == RomFormat.VsSystem || MainWindow.RomInfo.Format == RomFormat.VsDualSystem);
 
 			Func<bool> canDebugGame = () => IsGameRunning && MainWindow.RomInfo.ConsoleType.SupportsDebugger();
+			Func<bool> canViewGenesis = () => IsGameRunning && RomInfo.ConsoleType == ConsoleType.Genesis;
+			Func<bool> canViewGraphics = () => canDebugGame() || canViewGenesis();
 
 			DebugMenuItems = new List<object>() {
 				new ContextMenuAction() {
@@ -1069,26 +1071,48 @@ namespace Mesen.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenTilemapViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenTilemapViewer),
-					IsEnabled = canDebugGame,
-					OnClick = () => DebugWindowManager.OpenDebugWindow(() => new TilemapViewerWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType()))
+					DynamicText = () => RomInfo.ConsoleType == ConsoleType.Genesis
+						? ResourceHelper.GetViewLabel(nameof(TilemapViewerWindow), "wndGenesisTitle")
+						: ResourceHelper.GetEnumText(ActionType.OpenTilemapViewer),
+					IsEnabled = canViewGraphics,
+					OnClick = () => {
+						if(canViewGenesis()) {
+							GenesisViewer.Open(wnd, () => new TilemapViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);
+						} else {
+							DebugWindowManager.OpenDebugWindow(() => new TilemapViewerWindow(RomInfo.ConsoleType.GetMainCpuType()));
+						}
+					}
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenTileViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenTileViewer),
-					IsEnabled = canDebugGame,
-					OnClick = () => DebugWindowManager.OpenDebugWindow(() => new TileViewerWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType()))
+					IsEnabled = canViewGraphics,
+					OnClick = () => {
+						if(canViewGenesis()) {
+							GenesisViewer.Open(wnd, () => new TileViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);
+						} else {
+							DebugWindowManager.OpenDebugWindow(() => new TileViewerWindow(RomInfo.ConsoleType.GetMainCpuType()));
+						}
+					}
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenSpriteViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenSpriteViewer),
+					IsVisible = () => RomInfo.ConsoleType != ConsoleType.Genesis,
 					IsEnabled = canDebugGame,
 					OnClick = () => DebugWindowManager.OpenDebugWindow(() => new SpriteViewerWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType()))
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenPaletteViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenPaletteViewer),
-					IsEnabled = canDebugGame,
-					OnClick = () => DebugWindowManager.OpenDebugWindow(() => new PaletteViewerWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType()))
+					IsEnabled = canViewGraphics,
+					OnClick = () => {
+						if(canViewGenesis()) {
+							GenesisViewer.Open(wnd, () => new PaletteViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);
+						} else {
+							DebugWindowManager.OpenDebugWindow(() => new PaletteViewerWindow(RomInfo.ConsoleType.GetMainCpuType()));
+						}
+					}
 				},
 				new ContextMenuSeparator(),
 				new ContextMenuAction() {

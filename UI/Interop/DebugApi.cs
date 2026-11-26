@@ -1341,6 +1341,7 @@ namespace Mesen.Interop
 		Rgb222,
 		Rgb444,
 		Bgr444,
+		GenesisRgb333,
 	}
 
 	public unsafe struct DebugPaletteInfo

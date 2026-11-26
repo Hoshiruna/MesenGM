@@ -38,7 +38,10 @@
 			/>
 		</Panel>
 
-		<dv:RefreshTimingView DataContext="{Binding RefreshTiming}" DockPanel.Dock="Bottom" />
+		<Border IsVisible="{Binding !IsGenesis}" DockPanel.Dock="Bottom">
+			<dv:RefreshTimingView DataContext="{Binding RefreshTiming}" />
+		</Border>
+		<TextBlock Text="{Binding GenesisStatus}" IsVisible="{Binding IsGenesis}" DockPanel.Dock="Bottom" Margin="6 3" />
 
 		<ScrollViewer DockPanel.Dock="Right" IsVisible="{Binding Config.ShowSettingsPanel}">
 			<StackPanel Margin="3">

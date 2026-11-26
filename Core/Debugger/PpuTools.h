@@ -203,7 +203,8 @@ enum class RawPaletteFormat
 	Rgb333,
 	Rgb222,
 	Rgb444,
-	Bgr444
+	Bgr444,
+	GenesisRgb333
 };
 
 struct DebugPaletteInfo

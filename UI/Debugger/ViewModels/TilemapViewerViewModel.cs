@@ -24,9 +24,10 @@ namespace Mesen.Debugger.ViewModels
 	{
 		[ObservableProperty] public partial CpuType CpuType { get; set; }
 		[ObservableProperty] public partial bool IsNes { get; private set; }
+		[ObservableProperty] public partial bool IsGenesis { get; private set; }
 
 		public TilemapViewerConfig Config { get; }
-		[ObservableProperty] public partial RefreshTimingViewModel RefreshTiming { get; private set; }
+		[ObservableProperty] public partial RefreshTimingViewModel? RefreshTiming { get; private set; }
 
 		[ObservableProperty] public partial Rect SelectionRect { get; set; }
 		[ObservableProperty] public partial int GridSizeX { get; set; } = 8;
@@ -45,6 +46,7 @@ namespace Mesen.Debugger.ViewModels
 
 		[ObservableProperty] public partial List<TilemapViewerTab> Tabs { get; private set; } = new List<TilemapViewerTab>();
 		[ObservableProperty] public partial bool ShowTabs { get; private set; }
+		[NotifyPropertyChangedFor(nameof(IsGenesisSpriteTab), nameof(InfoTitle), nameof(SelectionTitle))]
 		[ObservableProperty] public partial TilemapViewerTab SelectedTab { get; set; }
 
 		[ObservableProperty] public partial Rect ScrollOverlayRect { get; private set; }
@@ -142,6 +144,7 @@ namespace Mesen.Debugger.ViewModels
 			AddDisposables(DebugShortcutManager.CreateContextMenu(picViewer, scrollViewer, new List<object>() {
 				new ContextMenuAction() {
 					ActionType = ActionType.ViewInMemoryViewer,
+					IsVisible = () => !IsGenesis,
 					HintText = () => {
 						DebugTilemapTileInfo? tile = GetSelectedTileInfo();
 						return tile?.TileMapAddress > 0 ? $"${tile?.TileMapAddress:X4}" : "";
@@ -156,6 +159,7 @@ namespace Mesen.Debugger.ViewModels
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.ViewInTileViewer,
+					IsVisible = () => !IsGenesis,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.TilemapViewer_ViewInTileViewer),
 					OnClick = () => {
 						DebugTilemapTileInfo? tile = GetSelectedTileInfo();
@@ -164,19 +168,21 @@ namespace Mesen.Debugger.ViewModels
 						}
 					}
 				},
-				new ContextMenuSeparator(),
+				new ContextMenuSeparator() { IsVisible = () => !IsGenesis },
 				new ContextMenuAction() {
 					ActionType = ActionType.CopyToClipboard,
 					OnClick = () => wnd.Clipboard?.SetBitmapAsync(ViewerBitmap.CropBitmap(_previewCropRect))
 				},
-				new ContextMenuSeparator(),
+				new ContextMenuSeparator() { IsVisible = () => !IsGenesis },
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTile,
+					IsVisible = () => !IsGenesis,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.TilemapViewer_EditTile),
 					OnClick = () => EditTileGrid(1, 1, wnd)
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTiles,
+					IsVisible = () => !IsGenesis,
 					SubActions = new() {
 						GetEditTileAction(1, 2, wnd),
 						GetEditTileAction(2, 1, wnd),
@@ -185,9 +191,10 @@ namespace Mesen.Debugger.ViewModels
 						GetEditTileAction(8, 8, wnd)
 					}
 				},
-				new ContextMenuSeparator(),
+				new ContextMenuSeparator() { IsVisible = () => !IsGenesis },
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTilemapBreakpoint,
+					IsVisible = () => !IsGenesis,
 					HintText = () => {
 						DebugTilemapTileInfo? tile = GetSelectedTileInfo();
 						return tile?.TileMapAddress > 0 ? $"${tile?.TileMapAddress:X4}" : "";
@@ -257,6 +264,10 @@ namespace Mesen.Debugger.ViewModels
 
 		private void ContextMenu_Opening(object? sender, System.ComponentModel.CancelEventArgs e)
 		{
+			if(IsGenesis) {
+				e.Cancel = ViewerMousePos is not PixelPoint point || GetGenesisPreview(point, null) == null;
+				return;
+			}
 			if(GetSelectedTileInfo() == null) {
 				e.Cancel = true;
 			}
@@ -319,10 +330,10 @@ namespace Mesen.Debugger.ViewModels
 			}
 		}
 
-		[MemberNotNull(nameof(RefreshTiming))]
 		private void InitForCpuType()
 		{
-			RefreshTiming = new RefreshTimingViewModel(Config.RefreshTiming, CpuType);
+			IsGenesis = CpuType == CpuType.GenesisM68K;
+			RefreshTiming = IsGenesis ? null : new RefreshTimingViewModel(Config.RefreshTiming, CpuType);
 			IsNes = CpuType == CpuType.Nes;
 
 			if(IsNes) {
@@ -404,6 +415,10 @@ namespace Mesen.Debugger.ViewModels
 					};
 					break;
 
+				case CpuType.GenesisM68K:
+					Tabs = CreateGenesisTabs();
+					break;
+
 				default:
 					throw new Exception("unsupported cpu type");
 			}
@@ -436,7 +451,9 @@ namespace Mesen.Debugger.ViewModels
 			}
 
 			if(ViewerTooltip != null && ViewerMousePos != null) {
-				GetPreviewPanel(ViewerMousePos.Value, ViewerTooltip);
+				if(GetPreviewPanel(ViewerMousePos.Value, ViewerTooltip) == null && IsGenesis) {
+					ClearGenesisHover();
+				}
 			}
 		}
 
@@ -475,6 +492,11 @@ namespace Mesen.Debugger.ViewModels
 
 		public void RefreshData()
 		{
+			if(IsGenesis) {
+				RefreshGenesisData();
+				return;
+			}
+
 			lock(_updateLock) {
 				_coreData.MasterClock = EmuApi.GetTimingInfo(CpuType).MasterClock;
 
@@ -520,6 +542,11 @@ namespace Mesen.Debugger.ViewModels
 		private void InternalRefreshTab()
 		{
 			if(Disposed) {
+				return;
+			}
+
+			if(IsGenesis) {
+				DrawGenesisTab();
 				return;
 			}
 
@@ -617,6 +644,10 @@ namespace Mesen.Debugger.ViewModels
 
 		public DynamicTooltip? GetPreviewPanel(PixelPoint p, DynamicTooltip? tooltipToUpdate)
 		{
+			if(IsGenesis) {
+				return GetGenesisPreview(p, tooltipToUpdate);
+			}
+
 			if(_data.PpuState == null || _data.PpuToolsState == null) {
 				return null;
 			}
@@ -736,7 +767,7 @@ namespace Mesen.Debugger.ViewModels
 
 		private void EditTileGrid(int columnCount, int rowCount, Window wnd)
 		{
-			if(_data.PpuState == null || _data.PpuToolsState == null) {
+			if(_data.PpuState == null || _data.PpuToolsState == null || RefreshTiming is not { } timing) {
 				return;
 			}
 
@@ -810,8 +841,8 @@ namespace Mesen.Debugger.ViewModels
 				palette,
 				wnd,
 				CpuType,
-				RefreshTiming.ConsoleConfig.RefreshScanline,
-				RefreshTiming.ConsoleConfig.RefreshCycle
+				timing.ConsoleConfig.RefreshScanline,
+				timing.ConsoleConfig.RefreshCycle
 			);
 		}
 

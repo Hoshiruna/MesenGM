@@ -105,7 +105,7 @@ namespace Mesen.Debugger.Controls
 		}
 
 		private DynamicTooltip? _tooltip = null;
-		private Point _tooltipPos = new Point();
+		private Point? _tooltipPos;
 
 		static PaletteSelector()
 		{
@@ -118,6 +118,9 @@ namespace Mesen.Debugger.Controls
 
 			PaletteColorsProperty.Changed.AddClassHandler<PaletteSelector>((x, e) => {
 				x.CoerceValue(SelectedPaletteProperty);
+				if(x.RawFormat == RawPaletteFormat.GenesisRgb333 && x._tooltipPos is { } pos && ToolTip.GetIsOpen(x)) {
+					x.UpdateRawColorTooltip(pos);
+				}
 			});
 		}
 
@@ -287,47 +290,63 @@ namespace Mesen.Debugger.Controls
 			PixelSize size = PixelSize.FromSize(Bounds.Size, 1.0);
 
 			int columnCount = ColumnCount;
-			int rowCount = PaletteColors.Length / columnCount;
+			int colorCount = PaletteColors?.Length ?? 0;
+			int rowCount = columnCount > 0 ? colorCount / columnCount : 0;
+			if(rowCount == 0) {
+				return -1;
+			}
 			int cellWidth = size.Width / columnCount;
 			int cellHeight = size.Height / rowCount;
 			if(BlockSize > 0) {
 				cellWidth = BlockSize;
 				cellHeight = BlockSize;
 			}
+			if(cellWidth == 0 || cellHeight == 0) {
+				return -1;
+			}
 
 			int clickedRow = Math.Min(rowCount - 1, p.Y / cellHeight);
 			int clickedColumn = Math.Min(columnCount - 1, p.X / cellWidth);
 
-			return Math.Clamp(clickedRow * columnCount + clickedColumn, 0, PaletteColors.Length - 1);
+			return Math.Clamp(clickedRow * columnCount + clickedColumn, 0, colorCount - 1);
 		}
 
 		protected override void OnPointerMoved(PointerEventArgs e)
 		{
 			base.OnPointerMoved(e);
 
-			if(RawPalette == null) {
+			Point pos = e.GetCurrentPoint(this).Position;
+			if(pos == _tooltipPos && ToolTip.GetIsOpen(this)) {
 				return;
 			}
+			if(UpdateRawColorTooltip(pos)) {
+				TooltipHelper.ShowTooltip(this, _tooltip, 15);
+			}
+		}
 
-			Point pos = e.GetCurrentPoint(this).Position;
-			if(pos == _tooltipPos) {
-				return;
+		private bool UpdateRawColorTooltip(Point pos)
+		{
+			if(RawPalette is not { Length: > 0 } rawPalette || PaletteColors is not { } colors || rawPalette.Length != colors.Length) {
+				if(_tooltipPos.HasValue) {
+					_tooltipPos = null;
+					TooltipHelper.HideTooltip(this);
+				}
+				return false;
 			}
 
 			int paletteIndex = GetPaletteIndexFromPoint(pos);
-			_tooltip = PaletteHelper.GetPreviewPanel(PaletteColors, RawPalette, RawFormat, paletteIndex, _tooltip);
-			_tooltipPos = pos;
-
-			if(_tooltip != null) {
-				TooltipHelper.ShowTooltip(this, _tooltip, 15);
-			} else {
-				TooltipHelper.HideTooltip(this);
+			if(paletteIndex < 0) {
+				return false;
 			}
+			_tooltip = PaletteHelper.GetPreviewPanel(colors, rawPalette, RawFormat, paletteIndex, _tooltip);
+			_tooltipPos = pos;
+			return true;
 		}
 
 		protected override void OnPointerExited(PointerEventArgs e)
 		{
 			base.OnPointerExited(e);
+			_tooltipPos = null;
 			TooltipHelper.HideTooltip(this);
 		}
 
@@ -336,6 +355,9 @@ namespace Mesen.Debugger.Controls
 			base.OnPointerPressed(e);
 
 			int paletteIndex = GetPaletteIndexFromPoint(e.GetCurrentPoint(this).Position);
+			if(paletteIndex < 0) {
+				return;
+			}
 
 			RaiseEvent(new ColorClickEventArgs() { ColorIndex = paletteIndex, Color = Color.FromUInt32(PaletteColors[paletteIndex]) });
 

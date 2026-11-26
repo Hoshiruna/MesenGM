@@ -3,7 +3,7 @@
 #include "Genesis/GenesisConsole.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
-#include "Shared/Audio/SoundMixer.h"
+#include "Utilities/Audio/blip_buf.h"
 #include "Utilities/Serializer.h"
 
 #include <cmath>
@@ -498,50 +498,41 @@ void GenesisYm2612::ClockOnce()
 		}
 	}
 
-	//sclamp<16>
-	int16_t leftOut = (int16_t)(left > 32767 ? 32767 : left < -32768 ? -32768 :
-																							 left);
-	int16_t rightOut = (int16_t)(right > 32767 ? 32767 : right < -32768 ? -32768 :
-																								 right);
-
-	//Analog output stage (ares OPN2 stream): normalize to [-1,1], apply 20 Hz HPF
-	//(removes DC offset / low-frequency rumble) then 2840 Hz LPF (smooths FM
-	//aliasing and quantization noise), then back to int16. Without these the
-	//emulation sounds harsher/noisier than real hardware.
-	double ld = leftOut / 32768.0;
-	double rd = rightOut / 32768.0;
-	ld = _lpfLeft.Process(_hpfLeft.Process(ld));
-	rd = _lpfRight.Process(_hpfRight.Process(rd));
-	leftOut = (int16_t)(ld * 32768.0);
-	rightOut = (int16_t)(rd * 32768.0);
-
-	//Accumulate raw samples; consumed by MixAudio() when the primary audio
-	//source (PSG) flushes its buffer.
-	_samplesToPlay.push_back(leftOut);
-	_samplesToPlay.push_back(rightOut);
+	//Filter the full channel sum, then clamp before converting to PCM.
+	double filteredLeft = _lpfLeft.Process(_hpfLeft.Process(left / 32768.0));
+	double filteredRight = _lpfRight.Process(_hpfRight.Process(right / 32768.0));
+	_samplesToPlay.push_back((int16_t)std::clamp<double>(filteredLeft * 32768.0, INT16_MIN, INT16_MAX));
+	_samplesToPlay.push_back((int16_t)std::clamp<double>(filteredRight * 32768.0, INT16_MIN, INT16_MAX));
 }
 
 // ============================================================================
 // IO (ares io.cpp - verbatim register decode, port-aware address mapping)
 // ============================================================================
-uint8_t GenesisYm2612::ReadStatus()
+uint8_t GenesisYm2612::ReadStatus(uint64_t masterClock)
 {
-	//ares uses bit 0 for Timer A and bit 1 for Timer B.
-	//The Batman & Robin driver tests bit 1 (BIT 1,(IX+0)) for Timer B overflow.
-	uint8_t status = (_timerA.line << 0) | (_timerB.line << 1);
+	Run(masterClock);
+	uint8_t status = _timerA.line | (_timerB.line << 1);
+	if(masterClock < _busyUntil) {
+		status |= 0x80;
+	}
 	return status;
 }
 
-void GenesisYm2612::WriteAddress(uint8_t port, uint8_t data)
+void GenesisYm2612::Write(uint8_t port, uint8_t data, uint64_t masterClock)
 {
-	//Port 0 = registers 0x000-0x0FF; port 1 = registers 0x100-0x1FF.
-	//Each port has its own address latch on real hardware.
-	_io.address[port] = (port ? 0x100 : 0x000) | data;
+	Run(masterClock);
+	uint8_t bank = port >> 1;
+	if(port & 1) {
+		_busyUntil = masterClock + BusyMasterClocks;
+		WriteData(bank, data);
+	} else {
+		_io.address[bank] = (bank << 8) | data;
+	}
 }
 
-void GenesisYm2612::WriteData(uint8_t port, uint8_t data)
+void GenesisYm2612::WriteData(uint8_t bank, uint8_t data)
 {
-	uint16_t addr = _io.address[port];
+	uint16_t addr = _io.address[bank];
 
 	switch(addr) {
 		//LFO
@@ -807,13 +798,10 @@ void GenesisYm2612::Channel::Serialize(Serializer& s)
 
 void GenesisYm2612::Serialize(Serializer& s)
 {
-	if(s.IsSaving()) {
-		Run();
-	} else {
-		//Clear pending samples on load; they are a transient output buffer and
-		//shouldn't be restored.
-		_samplesToPlay.clear();
+	if(!s.IsSaving()) {
+		ResetAudioOutput();
 		_prevMasterClock = _console->GetMasterClock();
+		_busyUntil = 0;
 		//Recompute filter coefficients (a0/b1) on load; z1 is set to 0 here but
 		//will be overwritten by SV(_hpfLeft.z1) etc. below.
 		ResetOutputFilters();
@@ -849,6 +837,7 @@ void GenesisYm2612::Serialize(Serializer& s)
 
 	if(s.GetFormat() != SerializeFormat::Map) {
 		SV(_prevMasterClock);
+		SV(_busyUntil);
 		//Filter state (z1) — coefficients are recomputed in ResetOutputFilters()
 		//above (on load), only the transient state needs saving.
 		SV(_hpfLeft.z1);
@@ -862,22 +851,13 @@ void GenesisYm2612::Serialize(Serializer& s)
 // Mesen2 integration: constructor, Run, MixAudio, SetRegion
 // ============================================================================
 
-//ares OPN2 analog output stage: first-order OnePole IIR filters (nall/dsp/iir/one-pole.hpp).
-//addHighPassFilter(20.0, 1) + addLowPassFilter(2840.0, 1) are applied per-sample
-//before the resampler. Without these, FM aliasing/quantization noise passes through
-//unchanged, and the output sounds harsher than real hardware.
 void GenesisYm2612::OnePoleFilter::Reset(bool hp, double cutoffFrequency, double samplingFrequency)
 {
 	highPass = hp;
 	z1 = 0.0;
-	double x = cos(2.0 * 3.14159265358979323846 * cutoffFrequency / samplingFrequency);
-	if(!hp) { //LowPass
-		b1 = +2.0 - x - sqrt((+2.0 - x) * (+2.0 - x) - 1.0);
-		a0 = 1.0 - b1;
-	} else { //HighPass
-		b1 = -2.0 - x + sqrt((-2.0 - x) * (-2.0 - x) - 1.0);
-		a0 = 1.0 + b1;
-	}
+	double x = 2.0 - cos(2.0 * 3.14159265358979323846 * cutoffFrequency / samplingFrequency);
+	b1 = x - sqrt(x * x - 1.0);
+	a0 = 1.0 - b1;
 }
 
 void GenesisYm2612::ResetOutputFilters()
@@ -893,66 +873,83 @@ void GenesisYm2612::ResetOutputFilters()
 
 GenesisYm2612::GenesisYm2612(Emulator* emu, GenesisConsole* console)
 {
-	_emu = emu;
 	_console = console;
-	_soundMixer = emu->GetSoundMixer();
 	_settings = emu->GetSettings();
 
-	//Register as an audio provider so MixAudio() is called when PSG (the
-	//primary audio source) flushes its buffer. This mixes YM2612 output into
-	//PSG's buffer rather than sending a separate PlayAudioBuffer call, which
-	//caused the audio device to play PSG and YM2612 buffers sequentially
-	//instead of mixed (heard as noise/static).
-	_soundMixer->RegisterAudioProvider(this);
+	for(auto& channel : _audioChannels) {
+		channel = blip_new(GenesisAudioBufferSize);
+	}
+	_samplesToPlay.reserve(GenesisAudioBufferSize);
 
-	//Sync to the console's current master clock so the first Run() call doesn't
-	//try to catch up from 0 (which would produce a burst of stale samples).
-	_prevMasterClock = _console->GetMasterClock();
-
-	//Reserve capacity for ~1 frame of stereo samples (~887 YM2612 samples/frame).
-	_samplesToPlay.reserve(2000 * 2);
-
-	ResetOutputFilters();
-
-	Power();
+	Reset();
 }
 
 GenesisYm2612::~GenesisYm2612()
 {
-	_soundMixer->UnregisterAudioProvider(this);
+	for(auto* channel : _audioChannels) {
+		blip_delete(channel);
+	}
+}
+
+void GenesisYm2612::ResetAudioOutput()
+{
+	_samplesToPlay.clear();
+	for(int channel = 0; channel < 2; channel++) {
+		blip_set_rates(_audioChannels[channel], _console->GetMasterClockRate(), GenesisAudioSampleRate);
+		blip_clear(_audioChannels[channel]);
+		_previousSamples[channel] = 0;
+	}
+}
+
+void GenesisYm2612::Reset()
+{
+	Power();
+	ResetAudioOutput();
+	_prevMasterClock = _console->GetMasterClock();
+	_busyUntil = 0;
+	ResetOutputFilters();
 }
 
 void GenesisYm2612::SetRegion(ConsoleRegion region)
 {
-	//Recompute filter coefficients since the native sample rate changed with region.
+	ResetAudioOutput();
 	ResetOutputFilters();
 }
 
-void GenesisYm2612::Run()
+void GenesisYm2612::Run(uint64_t masterClock)
 {
-	//Advance from _prevMasterClock to the console's current master clock,
-	//producing one YM2612 sample per 1008 master clocks.
-	uint64_t runTo = _console->GetMasterClock();
-	while(_prevMasterClock + MasterClocksPerSample <= runTo) {
+	while(_prevMasterClock + MasterClocksPerSample <= masterClock) {
 		_prevMasterClock += MasterClocksPerSample;
 		ClockOnce();
 	}
 }
 
-void GenesisYm2612::MixAudio(int16_t* out, uint32_t sampleCount, uint32_t sampleRate)
+void GenesisYm2612::MixAudio(int16_t* out, uint32_t sampleCount, uint64_t frameStart, uint32_t clockCount)
 {
-	//Flush any pending samples (in case Run() wasn't called recently enough).
-	Run();
+	uint64_t frameEnd = frameStart + clockCount;
+	uint64_t sampleClock = _prevMasterClock + MasterClocksPerSample - (_samplesToPlay.size() / 2) * MasterClocksPerSample;
+	size_t consumed = 0;
+	for(; consumed < _samplesToPlay.size() && sampleClock <= frameEnd; consumed += 2, sampleClock += MasterClocksPerSample) {
+		uint32_t clock = (uint32_t)(std::max(frameStart, sampleClock) - frameStart);
+		for(int channel = 0; channel < 2; channel++) {
+			int16_t sample = _samplesToPlay[consumed + channel];
+			if(sample != _previousSamples[channel]) {
+				blip_add_delta(_audioChannels[channel], clock, sample - _previousSamples[channel]);
+				_previousSamples[channel] = sample;
+			}
+		}
+	}
+	//A CPU access can advance the chip past the end of the output interval.
+	_samplesToPlay.erase(_samplesToPlay.begin(), _samplesToPlay.begin() + consumed);
 
-	//Resample YM2612 native samples (master/1008) to the target sample rate
-	//and mix (add) into the output buffer. The `true` template parameter
-	//enables add mode so YM2612 output is mixed with PSG output rather than
-	//overwriting it.
-	double nativeRate = (double)_console->GetMasterClockRate() / (double)MasterClocksPerSample;
-	_resampler.SetVolume(_settings->GetGenesisConfig().Ym2612Volume / 100.0);
-	_resampler.SetSampleRates(nativeRate, sampleRate);
-
-	_resampler.Resample<true>(_samplesToPlay.data(), (uint32_t)_samplesToPlay.size() / 2, out, sampleCount, true);
-
-	_samplesToPlay.clear();
+	int32_t volume = (int32_t)std::min(_settings->GetGenesisConfig().Ym2612Volume, 100u);
+	int16_t samples[GenesisAudioBufferSize];
+	for(int channel = 0; channel < 2; channel++) {
+		blip_end_frame(_audioChannels[channel], clockCount);
+		int samplesRead = blip_read_samples(_audioChannels[channel], samples, sampleCount, 0);
+		for(int i = 0; i < samplesRead; i++) {
+			int32_t mixed = out[2 * i + channel] + samples[i] * volume / 100;
+			out[2 * i + channel] = (int16_t)std::clamp<int32_t>(mixed, INT16_MIN, INT16_MAX);
+		}
+	}
 }

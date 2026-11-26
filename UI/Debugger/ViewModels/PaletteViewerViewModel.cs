@@ -8,6 +8,7 @@ using Mesen.Debugger.Controls;
 using Mesen.Debugger.Utilities;
 using Mesen.Debugger.Windows;
 using Mesen.Interop;
+using Mesen.Localization;
 using Mesen.Utilities;
 using Mesen.ViewModels;
 using Mesen.Windows;
@@ -20,8 +21,11 @@ namespace Mesen.Debugger.ViewModels
 	public partial class PaletteViewerViewModel : DisposableViewModel, ICpuTypeModel
 	{
 		public CpuType CpuType { get; set; }
+		public bool IsGenesis => CpuType == CpuType.GenesisM68K;
+		internal bool HasGenesisSnapshot => _genesisCram.Length > 0;
 		public PaletteViewerConfig Config { get; }
-		[ObservableProperty] public partial RefreshTimingViewModel RefreshTiming { get; private set; }
+		[ObservableProperty] public partial RefreshTimingViewModel? RefreshTiming { get; private set; }
+		[ObservableProperty] public partial string GenesisStatus { get; private set; } = "";
 
 		[ObservableProperty] public partial UInt32[] PaletteColors { get; set; } = Array.Empty<UInt32>();
 		[ObservableProperty] public partial UInt32[]? PaletteValues { get; set; } = null;
@@ -38,6 +42,8 @@ namespace Mesen.Debugger.ViewModels
 		[ObservableProperty] public partial List<object> ViewMenuActions { get; private set; } = new();
 
 		private RefStruct<DebugPaletteInfo>? _palette = null;
+		private uint[] _genesisCram = Array.Empty<uint>();
+		private PaletteSelector? _genesisPaletteSelector;
 
 		[Obsolete("For designer only")]
 		public PaletteViewerViewModel() : this(CpuType.Snes) { }
@@ -46,13 +52,17 @@ namespace Mesen.Debugger.ViewModels
 		{
 			Config = ConfigManager.Config.Debug.PaletteViewer.Clone();
 			CpuType = cpuType;
-			RefreshTiming = new RefreshTimingViewModel(Config.RefreshTiming, cpuType);
+			RefreshTiming = IsGenesis ? null : new RefreshTimingViewModel(Config.RefreshTiming, cpuType);
 
 			if(Design.IsDesignMode) {
 				return;
 			}
 
-			AddDisposable(Config.ObserveProp(nameof(Config.Zoom), () => BlockSize = Math.Max(16, 16 + (Config.Zoom - 1) * 4)));
+			AddDisposable(Config.ObserveProp(nameof(Config.Zoom), UpdateBlockSize));
+			if(IsGenesis) {
+				UpdateBlockSize();
+				GenesisStatus = ResourceHelper.GetMessage("GenesisViewerWaitingForFrame");
+			}
 			UpdatePreviewPanel();
 		}
 
@@ -63,6 +73,10 @@ namespace Mesen.Debugger.ViewModels
 
 		public void InitActions(Window wnd, PaletteSelector palSelector, Border selectorBorder)
 		{
+			if(IsGenesis) {
+				_genesisPaletteSelector = palSelector;
+			}
+
 			FileMenuActions = AddDisposables(new List<object>() {
 				new ContextMenuAction() {
 					ActionType = ActionType.Exit,
@@ -114,6 +128,7 @@ namespace Mesen.Debugger.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.EditColor,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.PaletteViewer_EditColor),
+					IsVisible = () => !IsGenesis,
 					IsEnabled = () => SelectedPalette >= 0,
 					OnClick = () => {
 						Dispatcher.UIThread.Post(() => {
@@ -181,8 +196,34 @@ namespace Mesen.Debugger.ViewModels
 			Config.Zoom = Math.Min(20, Math.Max(1, Config.Zoom + 1));
 		}
 
+		private void UpdateBlockSize()
+		{
+			BlockSize = Math.Max(16, 16 + (Config.Zoom - 1) * 4);
+		}
+
 		public void RefreshData()
 		{
+			if(IsGenesis) {
+				var snapshot = GenesisVdpDebugApi.ReadPalette();
+				if(snapshot == null && !HasGenesisSnapshot) {
+					return;
+				}
+				_genesisCram = snapshot?.Cram ?? Array.Empty<uint>();
+				PaletteColors = snapshot?.Colors ?? Array.Empty<uint>();
+				GenesisStatus = snapshot is { } frame
+					? ResourceHelper.GetMessage("GenesisPaletteViewerFrame", frame.FrameCount)
+					: ResourceHelper.GetMessage("GenesisViewerWaitingForFrame");
+				if(snapshot == null) {
+					if(ViewerTooltip != null && _genesisPaletteSelector != null) {
+						TooltipHelper.HideTooltip(_genesisPaletteSelector);
+					}
+					ViewerTooltip = null;
+					ViewerMouseOverPalette = -1;
+				}
+				UpdatePreviewPanel();
+				return;
+			}
+
 			DebugPaletteInfo paletteInfo = DebugApi.GetPaletteInfo(CpuType);
 			uint[] paletteColors = paletteInfo.GetRgbPalette();
 			uint[]? paletteValues;
@@ -214,12 +255,18 @@ namespace Mesen.Debugger.ViewModels
 
 		public DynamicTooltip? GetPreviewPanel(int index, DynamicTooltip? tooltipToUpdate)
 		{
+			if(IsGenesis) {
+				return (uint)index < (uint)_genesisCram.Length
+					? PaletteHelper.GetPreviewPanel(PaletteColors, _genesisCram, RawPaletteFormat.GenesisRgb333, index, tooltipToUpdate)
+					: null;
+			}
+
 			if(_palette == null) {
 				return null;
 			}
 
 			DebugPaletteInfo palette = _palette.Get();
-			if(index >= palette.ColorCount) {
+			if((uint)index >= palette.ColorCount) {
 				return null;
 			}
 

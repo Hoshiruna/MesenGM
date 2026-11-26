@@ -44,6 +44,9 @@ public:
 		M24C128, //131072 cells => 16384 x 8-bit x 1-block
 		M24C256, //262144 cells => 32768 x 8-bit x 1-block
 		M24C512, //524288 cells => 65536 x 8-bit x 1-block
+
+		//Keep the existing values for save states. X24C02 uses an 8-bit word address.
+		X24C02,
 	};
 
 	enum class Mode : uint32_t
@@ -126,6 +129,8 @@ public:
 	uint8_t locked = 0;
 
 private:
+	bool Uses16BitAddress() const { return _type >= Type::M24C32 && _type <= Type::M24C512; }
+
 	//Decodes the device address byte and returns whether this chip
 	//should acknowledge (Memory and IDPage areas only; M24C16 and
 	//below ignore the IDPage area).

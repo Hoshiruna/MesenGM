@@ -10,6 +10,7 @@ Check the live tool schema first. These details reflect `McpDebugService.cs` in 
 | `debugger_status` | No arguments. Includes `debugger_running`, `emulation_running`, `execution_stopped`, `emulation_paused`. |
 | `get_cpu_state` | Optional `cpu_type`; defaults to the loaded system's main CPU. |
 | `get_ppu_state` | Optional `cpu_type`; structured PPU state for NES, SNES and Game Boy. |
+| `get_genesis_vdp_state` | Mega Drive only. Reads the last submitted frame's VDP counters, SAT, and sprite cache. Optional `sprite_offset` (0-79), `sprite_count` (0-80, default 20), and `scanline` (0-239). The requested line includes `mapping_fetches` and `hscroll_fetch` (scroll table addresses and words at fetch time and frame end). Set `include_hscroll_writes: true` with `scanline` for changes to the fetched words in commit order. Use `sprite_count: 0` to omit SAT rows. Check `frame_count` when comparing calls. |
 | `get_screen` | Optional `apply_video_filter` (default false) and `include_base64` (default false). Returns the last rendered frame as an `image/png` content block plus `width`, `height`, `byte_length`, `frame_count`, `emulation_paused`. Fails until at least one frame has been rendered. |
 | `get_disassembly` | Optional `cpu_type`, `address`, `line_count` (1-100, default 20). Omitting `address` centers on the current PC. |
 | `get_trace_tail` | `count` (1-1000, default 100), `offset` (default 0, measured from the newest entry). No `cpu_type` argument. |

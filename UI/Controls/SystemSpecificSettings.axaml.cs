@@ -149,7 +149,13 @@ namespace Mesen.Controls
 
 					case ConfigWindowTab.Genesis:
 						if(cfg.Genesis != null) {
-							cfg.Genesis.SelectedTab = ConfigType == ConfigType.Input ? GenesisConfigTab.Input : GenesisConfigTab.General;
+							cfg.Genesis.SelectedTab = ConfigType switch {
+								ConfigType.Audio => GenesisConfigTab.Audio,
+								ConfigType.Emulation => GenesisConfigTab.Emulation,
+								ConfigType.Input => GenesisConfigTab.Input,
+								ConfigType.Video => GenesisConfigTab.Video,
+								_ => GenesisConfigTab.General,
+							};
 						}
 						break;
 

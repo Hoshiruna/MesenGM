@@ -33,6 +33,7 @@ public:
 	uint32_t ExecuteInstruction();
 
 	void AddCycles(uint32_t cycles) { _cycleAccum += cycles; }
+	uint32_t GetInstructionCycles() const { return _cycleAccum; }
 
 	//Interrupt lines
 	void SetIrq(bool line); //level-sensitive maskable interrupt

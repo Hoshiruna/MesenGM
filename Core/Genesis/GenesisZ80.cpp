@@ -2202,7 +2202,7 @@ void GenesisZ80::InstructionED(uint8_t code)
 				if(cf & 0x100) {
 					_r.flags |= FlagC | FlagH;
 				}
-				if(Parity((_r.l + data) & 7 ^ _r.b)) {
+				if(Parity(((_r.l + data) & 7) ^ _r.b)) {
 					_r.flags |= FlagP;
 				}
 				if(_r.b & 0x08) {
@@ -2320,7 +2320,7 @@ void GenesisZ80::InstructionED(uint8_t code)
 				if(cf & 0x100) {
 					_r.flags |= FlagC | FlagH;
 				}
-				if(Parity((_r.l + data) & 7 ^ _r.b)) {
+				if(Parity(((_r.l + data) & 7) ^ _r.b)) {
 					_r.flags |= FlagP;
 				}
 				if(_r.b & 0x08) {
@@ -2453,7 +2453,7 @@ void GenesisZ80::InstructionED(uint8_t code)
 				if(cf & 0x100) {
 					_r.flags |= FlagC | FlagH;
 				}
-				if(Parity((_r.l + data) & 7 ^ _r.b)) {
+				if(Parity(((_r.l + data) & 7) ^ _r.b)) {
 					_r.flags |= FlagP;
 				}
 				if(_r.b & 0x08) {
@@ -2591,7 +2591,7 @@ void GenesisZ80::InstructionED(uint8_t code)
 				if(cf & 0x100) {
 					_r.flags |= FlagC | FlagH;
 				}
-				if(Parity((_r.l + data) & 7 ^ _r.b)) {
+				if(Parity(((_r.l + data) & 7) ^ _r.b)) {
 					_r.flags |= FlagP;
 				}
 				if(_r.b & 0x08) {

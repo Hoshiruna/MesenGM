@@ -27,14 +27,17 @@ public:
 
 	string GetAvailableDevices();
 	void SetAudioDevice(string deviceName);
+	AudioStatistics GetStatistics() override;
 
 private:
 	vector<SoundDeviceInfo> GetAvailableDeviceInfo();
 	static bool CALLBACK DirectSoundEnumProc(LPGUID lpGUID, LPCWSTR lpszDesc, LPCSTR lpszDrvName, LPVOID lpContext);
 	bool InitializeDirectSound(uint32_t sampleRate, bool isStereo);
-	void ClearSecondaryBuffer();
-	void CopyToSecondaryBuffer(uint8_t* data, uint32_t size);
-	void ValidateWriteCursor(DWORD safeWriteCursor);
+	bool ClearSecondaryBuffer();
+	void CopyToSecondaryBuffer(const uint8_t* data, uint32_t size);
+	uint32_t GetBufferDistance(DWORD from, DWORD to) const;
+	uint32_t GetMinimumLatency() const;
+	void RecoverFromUnderrun(DWORD playCursor, uint32_t safeLead);
 
 private:
 	Emulator* _emu;
@@ -44,7 +47,9 @@ private:
 	string _audioDeviceName = "";
 
 	DWORD _lastWriteOffset = 0;
+	DWORD _lastPlayOffset = 0;
 	uint32_t _previousLatency = 0;
+	uint32_t _minimumLatency = 0;
 	bool _playing = false;
 
 	IDirectSound8* _directSound;

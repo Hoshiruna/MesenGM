@@ -41,6 +41,9 @@ namespace Mesen.ViewModels
 	public enum GenesisConfigTab
 	{
 		General,
-		Input
+		Audio,
+		Emulation,
+		Input,
+		Video
 	}
 }

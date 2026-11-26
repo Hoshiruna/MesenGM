@@ -36,6 +36,11 @@ GenesisConsole::~GenesisConsole()
 	}
 }
 
+static bool HasSsfMapperHeader(const uint8_t* system)
+{
+	return memcmp(system, "SEGASSF", 7) == 0 || memcmp(system, "SEGA SSF", 8) == 0;
+}
+
 bool GenesisConsole::HasBinRomHeader(VirtualFile& romFile)
 {
 	const vector<uint8_t>& data = romFile.GetData();
@@ -44,7 +49,7 @@ bool GenesisConsole::HasBinRomHeader(VirtualFile& romFile)
 	}
 
 	const uint8_t* system = data.data() + 0x100;
-	return memcmp(system, "SEGA MEGA DRIVE", 15) == 0 || memcmp(system, "SEGA GENESIS", 12) == 0 || memcmp(system, "SEGASSF", 7) == 0 || memcmp(system, "SEGA SSF", 8) == 0;
+	return memcmp(system, "SEGA MEGA DRIVE", 15) == 0 || memcmp(system, "SEGA GENESIS", 12) == 0 || HasSsfMapperHeader(system);
 }
 
 LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
@@ -93,9 +98,10 @@ LoadRomResult GenesisConsole::LoadRom(VirtualFile& romFile)
 	_z80->SetEmulator(_emu);
 	_memoryManager = unique_ptr<GenesisMemoryManager>(new GenesisMemoryManager());
 
-	//Initialize memory manager (wires bus callbacks to M68K and Z80)
+	//The Acclaim 16M board ignores the byte write strobes.
+	bool acclaim16M = _eepromType == GenesisEeprom::Type::X24C02;
 	_memoryManager->Init(
-		_emu, this, _m68k.get(), _z80.get(), _vdp.get(), _psg.get(), _ym2612.get(), _controlManager.get(), _romData.data(), (uint32_t)_romData.size(), _sram, _sramSize, _sramStart, _sramWritable, _sramOddByte, _banked, _romBank, _useEeprom, &_eeprom, _eepromRsda, _eepromWsda, _eepromWscl);
+		_emu, this, _m68k.get(), _z80.get(), _vdp.get(), _psg.get(), _ym2612.get(), _controlManager.get(), _romData.data(), (uint32_t)_romData.size(), _sram, _sramSize, _sramStart, _sramWritable, _sramOddByte, _banked, _romBank, (bool)_eeprom, &_eeprom, _eepromRsda, _eepromWsda, _eepromWscl, acclaim16M);
 
 	//Wire M68K pointer to VDP
 	_vdp->SetM68K(_m68k.get());
@@ -116,18 +122,19 @@ void GenesisConsole::ParseRomHeader(vector<uint8_t>& romData)
 		return;
 	}
 
-	//System type at offset $100 (16 bytes, space-padded ASCII).
-	//Standard values: "SEGA MEGA DRIVE ", "SEGA GENESIS    ".
-	//Homebrew/SSF carts use "SEGA SSF        " to request the
-	//SSF2 bank-switching mapper on flash carts. We honor this header
-	//as an explicit signal to enable bank switching, matching the
-	//behavior documented at blog.roberthargreaves.com/2025/03/10/sram-and-everdrives.
-	if(romData.size() >= 0x110 &&
-		romData[0x100] == 'S' && romData[0x101] == 'E' &&
-		romData[0x102] == 'G' && romData[0x103] == 'A' &&
-		romData[0x104] == 'S' && romData[0x105] == 'S' &&
-		romData[0x106] == 'F') {
+	//The system identifier at $100 can explicitly request the SSF mapper.
+	if(HasSsfMapperHeader(romData.data() + 0x100)) {
 		_banked = true;
+	}
+
+	string productCode = StringUtilities::Trim(string(reinterpret_cast<const char*>(romData.data() + 0x182), 9));
+	if(productCode == "G-4524") {
+		//Ninja Burai Densetsu uses the Sega board, with SDA on D0 in both directions.
+		_eepromType = GenesisEeprom::Type::X24C01;
+	} else if(productCode == "T-081326") {
+		//NBA Jam (USA/Europe) uses Acclaim 16M, with SDA output on D1.
+		_eepromType = GenesisEeprom::Type::X24C02;
+		_eepromRsda = 1;
 	}
 
 	//SRAM info from ROM header at offset $1B0-$1BF.
@@ -230,14 +237,11 @@ void GenesisConsole::InitCart(vector<uint8_t>& romData)
 		_romBank[i] = i;
 	}
 
-	//Allocate SRAM if the header indicated its presence
-	if(_useEeprom) {
-		//EEPROM cartridge — initialize the M24C chip. Default to M24C08
-		//(1KB) which is the most common type for Acclaim-mapper EEPROM
-		//games (Light Crusader, Shadowrun, etc.). The EEPROM type is
-		//normally specified by an external manifest in ares; without one,
-		//M24C08 is a safe default that matches the majority of games.
-		_eeprom.load(GenesisEeprom::Type::M24C08);
+	if(_eepromType != GenesisEeprom::Type::None) {
+		//Both supported boards map the serial lines across the upper 2 MiB of the cartridge window.
+		_sramStart = 0x200000;
+		_sramSize = 0x200000;
+		_eeprom.load(_eepromType);
 		_eeprom.power();
 		//No parallel SRAM on EEPROM carts
 		_sram = nullptr;
@@ -290,11 +294,15 @@ void GenesisConsole::Reset()
 	//Reset the EEPROM I2C state machine to Standby (preserves memory
 	//contents). Matches ares standard.cpp::power(reset) which calls
 	//m24c.power() on both power-on and reset.
-	if(_useEeprom) {
+	if(_eeprom) {
 		_eeprom.power();
 	}
 	_frameCount = 0;
 	_masterClock = 0;
+	_m68kClock = 0;
+	_z80Clock = 0;
+	_psg->Reset();
+	_ym2612->Reset();
 	_controlManager->ResetControllerHandshakes();
 	UpdateRegion();
 }
@@ -314,21 +322,13 @@ void GenesisConsole::RunFrame()
 	_controlManager->UpdateControlDevices();
 	_controlManager->UpdateInputState();
 
-	//Clear the framebuffer to the background color so stale pixels from the
-	//previous frame don't persist in regions the VDP doesn't write to.
-	_vdp->ClearFramebuffer();
+	_vdp->BeginFrame();
 
 	//Genesis frame timing:
 	//NTSC: 262 scanlines per frame, ~59.92 fps
 	//PAL:  313 scanlines per frame, ~49.70 fps
 	uint32_t scanlinesPerFrame = (_genesisRegion == GenesisRegion::Pal) ? 313 : 262;
-
-	//Run all scanlines in the frame
-	//Each scanline: VDP runs first, then M68K runs for the scanline's worth of cycles,
-	//then Z80 runs for its share. Interrupts are polled at the start of each scanline.
-	uint32_t m68kCyclesPerScanline = (uint32_t)(GetMasterClockRate() / 7.0 / GetFps() / scanlinesPerFrame);
-	uint32_t z80CyclesPerScanline = (uint32_t)(GetMasterClockRate() / 15.0 / GetFps() / scanlinesPerFrame);
-	uint64_t masterClockPerScanline = (uint64_t)(GetMasterClockRate() / GetFps() / scanlinesPerFrame);
+	constexpr uint32_t masterClocksPerScanline = 3420;
 
 	//In real hardware, Z80 INT is connected to VDP VBlank and is
 	//level-sensitive. However, the ares reference uses a timing hack
@@ -343,9 +343,8 @@ void GenesisConsole::RunFrame()
 	bool prevVblank = false;
 
 	for(uint32_t line = 0; line < scanlinesPerFrame; line++) {
-		//Advance master clock for this scanline so audio chips can generate
-		//samples at the correct rate.
-		_masterClock += masterClockPerScanline;
+		uint64_t scanlineStart = _masterClock;
+		_masterClock += masterClocksPerScanline;
 
 		//Run VDP for one scanline (renders pixels, generates Hblank/Vblank)
 		_vdp->RunScanline();
@@ -361,53 +360,10 @@ void GenesisConsole::RunFrame()
 			prevVblank = vblank;
 		}
 
-		//Run Z80 BEFORE M68K so it can process its VBlank interrupt
-		//before the M68K grabs the Z80 bus. On real hardware both CPUs
-		//run concurrently; in the sequential model, running Z80 first
-		//ensures it sees the VBlank signal before M68K acknowledgement
-		//clears it.
-		if(_z80) {
-			uint32_t z80Target = z80CyclesPerScanline;
-			uint32_t z80Run = 0;
-			uint32_t z80MaxInstr = z80Target * 4; //safety limit
+		RunScanlineCpus(scanlineStart);
 
-			while(z80Run < z80Target && z80MaxInstr-- > 0) {
-				uint32_t cyc = _z80->ExecuteInstruction();
-				z80Run += cyc;
-			}
-		}
-
-		//Run M68K for approximately one scanline's worth of M68K cycles.
-		//Note: M68K interrupt polling is done per-instruction inside
-		//ExecuteInstruction (via CheckInterrupts callback), matching ares's
-		//behavior where the CPU checks for pending interrupts before each
-		//instruction. This is critical for VBlank delivery timing.
-		uint32_t targetCycles = m68kCyclesPerScanline;
-		uint32_t cyclesRun = 0;
-		uint32_t m68kMaxInstr = targetCycles * 4; //safety limit
-
-		//When the M68K is in STOP state, the while loop below never enters
-		//(IsStopped() returns true), so CheckInterrupts — normally called
-		//inside ExecuteInstruction — is never invoked. This means the VDP
-		//interrupt that should wake the CPU from STOP is never delivered,
-		//and the M68K remains stuck forever (e.g. DisableRegTestROM's main
-		//loop uses STOP #$2000 / STOP #$2500 to wait for HBlank/VBlank).
-		//Fix: poll for interrupts directly when the CPU is stopped. If an
-		//interrupt is pending, CheckInterrupts calls Interrupt()->Exception()
-		//which clears _r.stop, allowing the while loop to run normally.
-		if(_m68k->IsStopped() && _m68k->CheckInterrupts) {
-			_m68k->CheckInterrupts();
-		}
-
-		while(cyclesRun < targetCycles && !_m68k->IsStopped() && m68kMaxInstr-- > 0) {
-			_vdp->SetM68kCyclePosition(cyclesRun, targetCycles);
-			cyclesRun += _m68k->ExecuteInstruction();
-			cyclesRun += _vdp->ConsumeBusPenalty();
-		}
-
-		//Run audio chips per-scanline for accurate sample timing
-		_psg->Run();
-		_ym2612->Run();
+		_psg->Run(_masterClock);
+		_ym2612->Run(_masterClock);
 
 		//NOTE: YM2612 Timer IRQ is NOT connected to Z80 NMI.
 		//The ares reference implementation never calls apu.setNMI() — the
@@ -419,10 +375,7 @@ void GenesisConsole::RunFrame()
 		//corrupt the stack of drivers that don't have an NMI handler at 0x0066.
 	}
 
-	//Flush accumulated PSG audio samples to the sound mixer. YM2612 audio is
-	//mixed into this buffer via IAudioProvider::MixAudio() (registered in
-	//GenesisYm2612 constructor), so no separate PlayAudioBuffer call is needed.
-	_psg->PlayQueuedAudio();
+	_psg->PlayQueuedAudio(*_ym2612);
 
 	_frameCount++;
 
@@ -438,8 +391,46 @@ void GenesisConsole::RunFrame()
 
 	bool rewinding = _emu->GetRewindManager()->IsRewinding();
 	_emu->GetVideoDecoder()->UpdateFrame(frame, rewinding, rewinding);
+	if(!_emu->IsRunAheadFrame()) {
+		_vdp->MarkFrameSubmitted();
+	}
 	_emu->GetNotificationManager()->SendNotification(ConsoleNotificationType::PpuFrameDone);
 	_emu->ProcessEndOfFrame();
+}
+
+void GenesisConsole::RunScanlineCpus(uint64_t scanlineStart)
+{
+	uint32_t m68kCyclesPerScanline = (uint32_t)((_masterClock - scanlineStart) / GenesisM68kClockDivider);
+	//Carry each CPU's instruction overrun into the next scanline.
+	while(_m68kClock < _masterClock || _z80Clock < _masterClock) {
+		if(_z80Clock <= _m68kClock) {
+			RunZ80Instruction();
+			continue;
+		}
+
+		uint32_t m68kCycle = (uint32_t)((_m68kClock - scanlineStart) / GenesisM68kClockDivider);
+		_vdp->SetM68kCyclePosition(m68kCycle, m68kCyclesPerScanline);
+		uint32_t cycles = std::max(1u, _m68k->ExecuteInstruction());
+		cycles += _vdp->ConsumeBusPenalty();
+		_m68kClock += (uint64_t)cycles * GenesisM68kClockDivider;
+		if(_m68k->IsStopped()) {
+			//The VDP can next wake the 68000 when it starts another scanline.
+			_m68kClock = std::max(_m68kClock, _masterClock);
+		}
+	}
+}
+
+void GenesisConsole::RunZ80Instruction()
+{
+	uint32_t cycles = std::max(1u, _z80->ExecuteInstruction());
+	_z80Clock += (uint64_t)cycles * GenesisZ80ClockDivider;
+}
+
+void GenesisConsole::RunZ80Until(uint64_t masterClock)
+{
+	while(_z80Clock < masterClock) {
+		RunZ80Instruction();
+	}
 }
 
 void GenesisConsole::SaveBattery()
@@ -471,24 +462,21 @@ PpuFrameInfo GenesisConsole::GetPpuFrame()
 {
 	PpuFrameInfo frame {};
 	if(_vdp) {
-		frame.FrameBuffer = (uint8_t*)_vdp->GetFramebuffer();
+		frame.FrameBuffer = (uint8_t*)_vdp->GetScreenPixels();
 		frame.Width = _vdp->GetScreenWidth();
 		frame.Height = _vdp->GetScreenHeight();
-		frame.FrameBufferSize = GenesisScreenWidthH40 * GenesisScreenHeightPal * sizeof(uint32_t);
+		frame.FrameBufferSize = GenesisScreenWidthH40 * frame.Height * sizeof(uint32_t);
 		frame.FrameCount = _vdp->GetFrameCount();
-		frame.ScanlineCount = frame.Height;
+		frame.ScanlineCount = _vdp->GetVisibleHeight();
 		frame.FirstScanline = 0;
 	} else {
-		static vector<uint32_t> blackFrame;
-		if(blackFrame.empty()) {
-			blackFrame.resize(GenesisScreenWidthH40 * GenesisScreenHeightNtsc, 0);
-		}
+		static vector<uint32_t> blackFrame(GenesisScreenWidthH40 * GenesisScreenHeightV28, 0);
 		frame.FrameBuffer = (uint8_t*)blackFrame.data();
 		frame.Width = GenesisScreenWidthH40;
-		frame.Height = GenesisScreenHeightNtsc;
+		frame.Height = GenesisScreenHeightV28;
 		frame.FrameBufferSize = static_cast<uint32_t>(blackFrame.size() * sizeof(uint32_t));
 		frame.FrameCount = _frameCount;
-		frame.ScanlineCount = frame.Height;
+		frame.ScanlineCount = GenesisScreenHeightNtsc;
 		frame.FirstScanline = 0;
 	}
 	return frame;
@@ -502,6 +490,14 @@ BaseVideoFilter* GenesisConsole::GetVideoFilter(bool getDefaultFilter)
 uint64_t GenesisConsole::GetMasterClock()
 {
 	return _masterClock;
+}
+
+uint64_t GenesisConsole::GetCpuMasterClock(CpuType cpuType) const
+{
+	if(cpuType == CpuType::GenesisZ80) {
+		return _z80Clock + (uint64_t)_z80->GetInstructionCycles() * GenesisZ80ClockDivider;
+	}
+	return _m68kClock + (uint64_t)_m68k->GetInstructionCycles() * GenesisM68kClockDivider;
 }
 
 uint32_t GenesisConsole::GetMasterClockRate()
@@ -682,6 +678,19 @@ void GenesisConsole::Serialize(Serializer& s)
 
 	SV(_frameCount);
 	SV(_masterClock);
+	if(s.GetFormat() != SerializeFormat::Map) {
+		if(!s.IsSaving()) {
+			_m68kClock = _masterClock;
+			_z80Clock = _masterClock;
+		}
+		SV(_m68kClock);
+		SV(_z80Clock);
+		if(!s.IsSaving()) {
+			//RunFrame starts a new scanline after loading a state saved mid-line.
+			_m68kClock = std::max(_m68kClock, _masterClock);
+			_z80Clock = std::max(_z80Clock, _masterClock);
+		}
+	}
 	SV(_sramEnable);
 	SV(_sramWritable);
 	SV(_banked);
@@ -689,12 +698,15 @@ void GenesisConsole::Serialize(Serializer& s)
 		SVI(_romBank[i]);
 	}
 
-	//EEPROM state (serialized separately from the memory manager so the
-	//console owns the save/load lifecycle; the memory manager just holds
-	//a pointer for bit-banging access).
-	SV(_useEeprom);
-	if(_useEeprom) {
+	//The ROM selects the board. The saved flag only tells us whether chip state is present.
+	bool hasEepromState = s.IsSaving() && _eeprom;
+	s.Stream(hasEepromState, "_useEeprom");
+	if(_eeprom && hasEepromState) {
 		SV(_eeprom);
+	} else if(_eeprom && !s.IsSaving()) {
+		_eeprom.power();
+	}
+	if(_eeprom && s.IsSaving()) {
 		SV(_eepromRsda);
 		SV(_eepromWsda);
 		SV(_eepromWscl);

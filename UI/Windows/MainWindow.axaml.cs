@@ -536,7 +536,7 @@ namespace Mesen.Windows
 				Height = height + menuHeight + _audioPlayer.Bounds.Height;
 				ResizeRenderer();
 			} else if(WindowState == WindowState.Maximized || WindowState == WindowState.FullScreen) {
-				_rendererSize = new Size(Math.Round(screenSize.Width * scale * aspectRatio) / dpiScale, Math.Round(screenSize.Height * scale) / dpiScale);
+				_rendererSize = new Size(Math.Round(screenSize.Height * scale * aspectRatio) / dpiScale, Math.Round(screenSize.Height * scale) / dpiScale);
 				ResizeRenderer();
 			}
 		}

@@ -39,7 +39,10 @@
 			/>
 		</Panel>
 
-		<dv:RefreshTimingView DataContext="{Binding RefreshTiming}" DockPanel.Dock="Bottom" />
+		<Border IsVisible="{Binding !IsGenesis}" DockPanel.Dock="Bottom">
+			<dv:RefreshTimingView DataContext="{Binding RefreshTiming}" />
+		</Border>
+		<TextBlock Text="{Binding GenesisStatus}" IsVisible="{Binding IsGenesis}" DockPanel.Dock="Bottom" Margin="6 3" />
 
 		<ScrollViewer DockPanel.Dock="Right" IsVisible="{Binding Config.ShowSettingsPanel}">
 			<StackPanel Margin="3">
@@ -58,7 +61,7 @@
 				<CheckBox Content="{l:Translate chkNesShowAttributeGrid}" IsChecked="{Binding Config.NesShowAttributeGrid}" IsVisible="{Binding IsNes}" />
 				<CheckBox Content="{l:Translate chkNesShowAttributeByteGrid}" IsChecked="{Binding Config.NesShowAttributeByteGrid}" IsVisible="{Binding IsNes}" />
 				<CheckBox Content="{l:Translate chkNesShowTilemapGrid}" IsChecked="{Binding Config.NesShowTilemapGrid}" IsVisible="{Binding IsNes}" />
-				<CheckBox Content="{l:Translate chkShowScrollOverlay}" IsChecked="{Binding Config.ShowScrollOverlay}" />
+				<CheckBox Content="{l:Translate chkShowScrollOverlay}" IsChecked="{Binding Config.ShowScrollOverlay}" IsVisible="{Binding !IsGenesisSpriteTab}" />
 
 				<c:GroupBox Header="{l:Translate lblHighlightOptions}" Margin="0" IsVisible="{Binding IsNes}">
 					<Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
@@ -69,12 +72,12 @@
 					</Grid>
 				</c:GroupBox>
 
-				<c:GroupBox Header="{l:Translate lblTilemap}" Margin="0 5 0 0" IsVisible="{Binding IsTilemapInfoVisible}">
+				<c:GroupBox Header="{Binding InfoTitle}" Margin="0 5 0 0" IsVisible="{Binding IsTilemapInfoVisible}">
 					<ContentControl Content="{Binding TilemapInfoPanel}" />
 				</c:GroupBox>
 				
 				<c:GroupBox
-					Header="{l:Translate lblSelectedTile}"
+					Header="{Binding SelectionTitle}"
 					IsVisible="{Binding PreviewPanel, Converter={x:Static ObjectConverters.IsNotNull}}"
 				>
 					<ContentControl Content="{Binding PreviewPanel}" />

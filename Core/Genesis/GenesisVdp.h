@@ -1,10 +1,55 @@
 #pragma once
 #include "pch.h"
+#include "Genesis/GenesisTypes.h"
 #include "Utilities/ISerializable.h"
 #include "Shared/SettingTypes.h"
+#include <mutex>
 
 class Emulator;
 class GenesisConsole;
+
+struct GenesisVdpDebugState
+{
+	uint32_t FrameCount, Width, Height, VCounter, HCounter;
+	uint32_t SatAddress, InterlaceMode, SpriteCount, MappingCount;
+};
+
+struct GenesisVdpDebugSprite
+{
+	uint16_t Y, SizeLink, Attributes, X, CachedY, CachedSizeLink;
+};
+
+struct GenesisVdpDebugMapping
+{
+	uint16_t Index, Y, SizeLink, Attributes, X, SatAddress;
+};
+
+struct GenesisVdpDebugHscroll
+{
+	uint32_t Captured, Mode, VramMode, HCounter, TableAddress, EntryAddress;
+	uint16_t RawA, RawB, FrameEndRawA, FrameEndRawB;
+};
+
+struct GenesisVdpDebugHscrollWrite
+{
+	uint32_t Address, SourceAddress;
+	uint16_t Before, After, VCounter, HCounter;
+	uint8_t Source, VramMode, InScanline, BeforeFetch;
+};
+
+struct GenesisVdpDebugHscrollWrites
+{
+	static constexpr uint32_t MaxCount = 64;
+	uint32_t Count, Truncated;
+	GenesisVdpDebugHscrollWrite* Changes;
+};
+
+struct GenesisVdpDebugGraphics
+{
+	uint32_t VramMode, PlaneColumns, PlaneRows, Backdrop;
+	uint32_t PlaneA, PlaneB, PatternA, PatternB, SpritePattern;
+	uint32_t ScrollAX, ScrollAY, ScrollBX, ScrollBY;
+};
 
 // Portable 128-bit unsigned integer for VDP pattern accumulation.
 // ares uses u128 (128-bit) for colors/extras; Mesen2 originally ported these
@@ -66,12 +111,12 @@ public:
 	//GenesisMemoryManager) is responsible for calling this 262/313 times per
 	//frame. Internally, this advances the hcounter through the entire line,
 	//performs slot work (FIFO, DMA, prefetch, VRAM access), and renders
-	//pixels into _framebuffer if the line is in the visible region.
+	//pixels into the render buffer if the line is in the visible region.
 	void RunScanline();
 
 	//M68K/Z80 bus interface — register reads/writes at 0xC00000-0xC0001F.
 	uint16_t Read(uint32_t address);
-	void Write(uint32_t address, uint16_t data);
+	void Write(uint32_t address, uint16_t data, uint64_t masterClock);
 
 	//Data port access (separate for the memory manager which may split 16-bit
 	//access into two 8-bit calls).
@@ -117,10 +162,15 @@ public:
 	}
 
 	//Framebuffer access for GenesisConsole::GetPpuFrame.
-	uint32_t* GetFramebuffer() { return _framebuffer.data(); }
-	void ClearFramebuffer();
+	uint32_t* GetScreenPixels() { return GetRenderBuffer() + GetTopBorder(_frameOverscan) * MaxWidth; }
+	void BeginFrame();
+	void MarkFrameSubmitted();
+	bool GetDebugSnapshot(int32_t scanline, GenesisVdpDebugState& state, GenesisVdpDebugSprite* sprites, GenesisVdpDebugMapping* mappings, GenesisVdpDebugHscroll& hscroll, GenesisVdpDebugHscrollWrites* writes);
+	bool GetDebugGraphics(GenesisVdpDebugState& state, GenesisVdpDebugGraphics& graphics, GenesisVdpDebugSprite* sprites, uint16_t* vram, uint32_t* palette, uint32_t* cram = nullptr);
+	bool GetDebugPalette(uint32_t& frameCount, uint32_t* palette, uint32_t* cram);
 	uint32_t GetScreenWidth() const { return _io.displayWidth ? 320 : 256; }
-	uint32_t GetScreenHeight() const { return _region == ConsoleRegion::Pal ? 294 : 243; }
+	uint32_t GetScreenHeight() const { return _frameOverscan ? GenesisScreenHeightV30 : GenesisScreenHeightV28; }
+	uint32_t GetVisibleHeight() const { return _region == ConsoleRegion::Pal ? GenesisScreenHeightPal : GenesisScreenHeightNtsc; }
 	uint32_t GetFrameCount() const { return _frameCount; }
 	uint16_t GetVCounter() const { return _state.vcounter; }
 	uint16_t GetHCounter() const { return _state.hcounter; }
@@ -185,10 +235,14 @@ private:
 
 	//--- Framebuffer ---
 	//Max size: 320x294 (H40, PAL full overscan) * 4 bytes (XRGB8888).
-	static constexpr uint32_t MaxWidth = 320;
-	static constexpr uint32_t MaxHeight = 294; //PAL full overscan
-	vector<uint32_t> _framebuffer; //XRGB8888
+	static constexpr uint32_t MaxWidth = GenesisScreenWidthH40;
+	static constexpr uint32_t MaxHeight = GenesisScreenHeightPal;
+	vector<uint32_t> _framebuffers[2]; //XRGB8888
+	uint32_t _renderBufferIndex = 0;
+	uint32_t _submittedBufferIndex = 1;
+	uint32_t* GetRenderBuffer() { return _framebuffers[_renderBufferIndex].data(); }
 	uint32_t _frameCount = 0;
+	bool _frameOverscan = false;
 
 	//--- Video RAM ---
 	static constexpr uint32_t VRAMSize = 32768; //64KB in 16-bit words
@@ -301,6 +355,20 @@ private:
 	} _irq;
 
 	//--- FIFO ---
+	enum class DebugWriteSource : uint8_t
+	{
+		UnknownFifo,
+		CpuDataPort,
+		DmaLoad,
+		DmaFill,
+		DmaCopy
+	};
+	struct DebugWriteOrigin
+	{
+		DebugWriteSource Source = DebugWriteSource::UnknownFifo;
+		uint32_t Address = 0;
+	};
+
 	struct Slot
 	{
 		uint8_t target = 0; //CD1-3 + read/write
@@ -309,6 +377,7 @@ private:
 		uint8_t upper = 0; //byte(1) valid
 		uint8_t lower = 0; //byte(0) valid
 		uint8_t latency = 0;
+		DebugWriteOrigin DebugOrigin;
 
 		bool empty() const { return !upper && !lower; }
 		bool full() const { return upper && lower; }
@@ -320,8 +389,9 @@ private:
 		void Tick();
 		void Advance(class GenesisVdp& vdp);
 		bool Run(class GenesisVdp& vdp);
-		void Write(uint8_t target, uint32_t address, uint16_t data);
+		void Write(uint8_t target, uint32_t address, uint16_t data, DebugWriteOrigin origin);
 		void Power();
+		uint8_t PendingCount() const;
 		bool empty() const { return slots[0].empty(); }
 		bool full() const { return !slots[3].empty(); }
 	} _fifo;
@@ -346,6 +416,7 @@ private:
 		uint16_t length = 0;
 		uint16_t data = 0;
 		uint8_t wait = 1;
+		uint8_t fifoEntriesBeforeFill = 0;
 		uint8_t read = 0;
 		uint8_t enable = 0;
 		uint8_t preload = 0;
@@ -516,6 +587,45 @@ private:
 		uint32_t FrameObjectLimit(bool h40) const { return h40 ? 80 : 64; }
 	} _sprite;
 
+	static constexpr uint32_t DebugSpriteCount = 80;
+	static constexpr uint32_t DebugMappingsPerLine = 20;
+	static constexpr uint32_t DebugHscrollWriteCapacity = 4096;
+	struct DebugLine
+	{
+		uint32_t Count = 0;
+		GenesisVdpDebugMapping Mappings[DebugMappingsPerLine];
+		GenesisVdpDebugHscroll Hscroll {};
+		uint32_t HscrollWriteIndex = 0;
+	};
+
+	struct DebugFrame
+	{
+		GenesisVdpDebugState State;
+		GenesisVdpDebugSprite Sprites[DebugSpriteCount];
+		DebugLine Lines[GenesisScreenHeightV30];
+		GenesisVdpDebugGraphics Graphics;
+		uint16_t Vram[VRAMSize];
+		uint32_t Palette[CRAMSize];
+		uint32_t Cram[CRAMSize];
+		uint32_t HscrollWriteCount = 0;
+		bool HscrollWritesTruncated = false;
+		GenesisVdpDebugHscrollWrite HscrollWrites[DebugHscrollWriteCapacity];
+	};
+
+	//The emulation thread writes one buffer while readers copy from the other.
+	DebugFrame _debugFrames[2];
+	std::mutex _debugFrameMutex;
+	uint32_t _debugWriteIndex = 0;
+	bool _debugFrameReady = false;
+	bool _debugCaptureFrame = false;
+	bool _debugInScanline = false;
+
+	uint16_t GetSpriteTableWordAddress() const;
+	static uint16_t PackSpriteSizeLink(const SpriteCache& sprite);
+	void InvalidateDebugSnapshot();
+	void RecordHscrollWrite(uint32_t address, uint16_t previousWord, DebugWriteOrigin origin);
+	static void CopyHscrollWrites(const DebugFrame& frame, const DebugLine& line, GenesisVdpDebugHscrollWrites& writes);
+
 	//--- DAC (pixel output) ---
 	struct DAC
 	{
@@ -589,7 +699,9 @@ private:
 	static uint16_t VramReadWord(const uint16_t* vram, uint8_t mode, uint16_t address);
 	static void VramWriteWord(uint16_t* vram, uint8_t mode, uint16_t address, uint16_t data);
 	static uint8_t VramReadByte(const uint16_t* vram, uint8_t mode, uint32_t address);
-	static void VramWriteByte(uint16_t* vram, uint8_t mode, uint32_t address, uint8_t data);
+	void WriteVramByte(uint32_t address, uint8_t data, DebugWriteOrigin origin);
+
+	uint32_t GetTopBorder(bool overscan) const;
 
 	//Update topline/bottomline based on region/overscan
 	void UpdateScreenParams();

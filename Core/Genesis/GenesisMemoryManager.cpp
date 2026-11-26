@@ -39,7 +39,7 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	uint32_t sramStart, bool sramWritable, bool sramOddByte,
 	bool useSsfMapper, uint8_t* romBank,
 	bool useEeprom, GenesisEeprom* eeprom,
-	uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl)
+	uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl, bool eepromIgnoresWriteStrobes)
 {
 	_emu = emu;
 	_console = console;
@@ -76,6 +76,7 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 	_eepromRsda = eepromRsda;
 	_eepromWsda = eepromWsda;
 	_eepromWscl = eepromWscl;
+	_eepromIgnoresWriteStrobes = eepromIgnoresWriteStrobes;
 
 	//Register memory regions with the emulator for debugger/cheat support
 	_emu->RegisterMemory(MemoryType::GenesisM68KRam, _m68kRam, M68KRamSize);
@@ -115,7 +116,7 @@ void GenesisMemoryManager::Init(Emulator* emu, GenesisConsole* console,
 		return M68KRead(upper, lower, address);
 	};
 	_m68k->BusWrite = [this](uint8_t upper, uint8_t lower, uint32_t address, uint16_t data) {
-		M68KWrite(upper, lower, address, data);
+		M68KWrite(upper, lower, address, data, CpuType::GenesisM68K);
 	};
 	_m68k->BusIdle = [this](uint32_t cycles) {
 		_m68k->AddCycles(cycles);
@@ -206,7 +207,7 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 		}
 		//0xA04000-0xA040FF: YM2612
 		if(address >= 0xA04000 && address <= 0xA040FF) {
-			uint8_t status = _ym2612->ReadStatus();
+			uint8_t status = _ym2612->ReadStatus(_console->GetCpuMasterClock(CpuType::GenesisM68K));
 			return ((uint16_t)status << 8) | status;
 		}
 		return 0xFFFF;
@@ -253,7 +254,7 @@ uint16_t GenesisMemoryManager::M68KRead(uint8_t upper, uint8_t lower, uint32_t a
 // M68K bus write
 // ============================================================================
 
-void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data)
+void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data, CpuType cpuType)
 {
 	address &= 0x00FFFFFE;
 
@@ -302,19 +303,14 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 		if(address >= 0xA04000 && address <= 0xA040FF) {
 			uint8_t reg = (address & 2) | (upper ? 0 : 1);
 			uint8_t byte = upper ? ((data >> 8) & 0xFF) : (data & 0xFF);
-			uint8_t port = (reg >> 1) & 1;
-			if(!(reg & 1)) {
-				_ym2612->WriteAddress(port, byte);
-			} else {
-				_ym2612->WriteData(port, byte);
-			}
+			_ym2612->Write(reg, byte, _console->GetCpuMasterClock(cpuType));
 		}
 		return;
 	}
 
 	//0xA10000-0xA1FFFF: I/O region
 	if(address >= 0xA10000 && address <= 0xA1FFFF) {
-		WriteM68KIO(address, upper, lower, data);
+		WriteM68KIO(address, upper, lower, data, cpuType);
 		return;
 	}
 
@@ -323,7 +319,7 @@ void GenesisMemoryManager::M68KWrite(uint8_t upper, uint8_t lower, uint32_t addr
 		if(!_vdpEnable[0] || !_vdpEnable[1]) {
 			return;
 		}
-		_vdp->Write(address, data);
+		_vdp->Write(address, data, _console->GetCpuMasterClock(cpuType));
 		return;
 	}
 
@@ -378,8 +374,13 @@ uint16_t GenesisMemoryManager::ReadM68KIO(uint32_t address, uint16_t openBus)
 
 	//0xA11100-0xA111FF: Z80 bus request status
 	if(address >= 0xA11100 && address <= 0xA111FF) {
-		uint16_t data = openBus;
-		data = (data & 0xFEFF) | (_busreqAck ? 0x0000 : 0x0100); //bit 8: 0=Z80 has bus, 1=Z80 granted
+		//The status line is visible as D8 on word reads and D0 on byte reads
+		//from the odd address ($A11101). Mirroring the bit across both bytes
+		//supports both access patterns used by Genesis software.
+		uint16_t data = openBus & 0xFEFE;
+		if(!_busreqAck) {
+			data |= 0x0101;
+		}
 		return data;
 	}
 
@@ -390,7 +391,7 @@ uint16_t GenesisMemoryManager::ReadM68KIO(uint32_t address, uint16_t openBus)
 // M68K I/O region write (0xA10000-0xA1FFFF)
 // ============================================================================
 
-void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data)
+void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data, CpuType cpuType)
 {
 	//0xA10000-0xA100FF: I/O ports
 	if(address >= 0xA10000 && address <= 0xA100FF) {
@@ -426,7 +427,7 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 		if(!upper) {
 			return; //upper byte only
 		}
-		SetBusreq((data >> 8) & 1);
+		SetBusreq((data >> 8) & 1, cpuType);
 		return;
 	}
 
@@ -435,7 +436,7 @@ void GenesisMemoryManager::WriteM68KIO(uint32_t address, uint8_t upper, uint8_t 
 		if(!upper) {
 			return;
 		}
-		SetReset((data >> 8) & 1);
+		SetReset((data >> 8) & 1, cpuType);
 		return;
 	}
 
@@ -656,18 +657,13 @@ void GenesisMemoryManager::WriteEepromWord(uint16_t data, uint8_t upper, uint8_t
 		//EEPROM is always enabled in our default config.
 		return;
 	}
-	if(upper && (_eepromWscl >> 3) == 1) {
-		_eeprom->clock = (data >> _eepromWscl) & 1;
+	bool writeClock = _eepromIgnoresWriteStrobes || (_eepromWscl < 8 ? lower : upper);
+	bool writeData = _eepromIgnoresWriteStrobes || (_eepromWsda < 8 ? lower : upper);
+	if(!writeClock && !writeData) {
+		return;
 	}
-	if(upper && (_eepromWsda >> 3) == 1) {
-		_eeprom->data = (data >> _eepromWsda) & 1;
-	}
-	if(lower && (_eepromWscl >> 3) == 0) {
-		_eeprom->clock = (data >> _eepromWscl) & 1;
-	}
-	if(lower && (_eepromWsda >> 3) == 0) {
-		_eeprom->data = (data >> _eepromWsda) & 1;
-	}
+	_eeprom->clock = writeClock ? ((data >> _eepromWscl) & 1) != 0 : _eeprom->clock();
+	_eeprom->data = writeData ? ((data >> _eepromWsda) & 1) != 0 : _eeprom->data();
 	_eeprom->write();
 }
 
@@ -684,7 +680,7 @@ uint8_t GenesisMemoryManager::Z80Read(uint16_t address)
 
 	//0x4000-0x5FFF: YM2612 — reading any address returns the status byte
 	if(address >= 0x4000 && address <= 0x5FFF) {
-		return _ym2612->ReadStatus();
+		return _ym2612->ReadStatus(_console->GetCpuMasterClock(CpuType::GenesisZ80));
 	}
 
 	//0x6000-0x60FF: Bank register
@@ -722,13 +718,7 @@ void GenesisMemoryManager::Z80Write(uint16_t address, uint8_t data)
 
 	//0x4000-0x5FFF: YM2612
 	if(address >= 0x4000 && address <= 0x5FFF) {
-		uint16_t reg = 0x4000 | (address & 3);
-		switch(reg) {
-			case 0x4000: _ym2612->WriteAddress(0, data); break;
-			case 0x4001: _ym2612->WriteData(0, data); break;
-			case 0x4002: _ym2612->WriteAddress(1, data); break;
-			case 0x4003: _ym2612->WriteData(1, data); break;
-		}
+		_ym2612->Write(address & 3, data, _console->GetCpuMasterClock(CpuType::GenesisZ80));
 		return;
 	}
 
@@ -800,9 +790,9 @@ void GenesisMemoryManager::Z80WriteExternal(uint32_t m68kAddress, uint8_t data)
 	//Write as a word with the byte in both positions (ares pattern)
 	uint16_t word = (data << 8) | data;
 	if(m68kAddress & 1) {
-		M68KWrite(0, 1, m68kAddress & ~1, word);
+		M68KWrite(0, 1, m68kAddress & ~1, word, CpuType::GenesisZ80);
 	} else {
-		M68KWrite(1, 0, m68kAddress & ~1, word);
+		M68KWrite(1, 0, m68kAddress, word, CpuType::GenesisZ80);
 	}
 }
 
@@ -810,35 +800,21 @@ void GenesisMemoryManager::Z80WriteExternal(uint32_t m68kAddress, uint8_t data)
 // Bus arbitration
 // ============================================================================
 
-void GenesisMemoryManager::SetBusreq(bool line)
+void GenesisMemoryManager::SetBusreq(bool line, CpuType cpuType)
 {
+	if(cpuType == CpuType::GenesisM68K && line != _busreqLine) {
+		_console->RunZ80Until(_console->GetCpuMasterClock(cpuType));
+	}
 	_busreqLine = line;
-	if(!line) {
-		_busreqAck = false;
-	}
+	_busreqAck = line;
 	_z80->SetBusreq(line);
-	if(line) {
-		_busreqAck = true;
-	} else if(_resetLine) {
-		//Bus released and Z80 is running — give it execution time.
-		//On real hardware the Z80 runs concurrently with the M68K.
-		//In our scanline scheduler (Z80 runs BEFORE M68K per scanline),
-		//a tight M68K polling loop (SETBUSREQ(1)→read→SETBUSREQ(0)→loop)
-		//starves the Z80: the bus is always held at the start of each
-		//scanline, so the Z80 never executes. Without this burst the Z80
-		//can never clear the busy flag ($1FFD) that the M68K is polling,
-		//causing a deadlock.
-		const uint32_t burstCycles = 200;
-		uint32_t run = 0;
-		uint32_t maxInstr = burstCycles * 4;
-		while(run < burstCycles && maxInstr-- > 0) {
-			run += _z80->ExecuteInstruction();
-		}
-	}
 }
 
-void GenesisMemoryManager::SetReset(bool line)
+void GenesisMemoryManager::SetReset(bool line, CpuType cpuType)
 {
+	if(cpuType == CpuType::GenesisM68K && line != _resetLine) {
+		_console->RunZ80Until(_console->GetCpuMasterClock(cpuType));
+	}
 	//line=true: Z80 released from reset (running); line=false: Z80 held in reset
 	_resetLine = line;
 	_z80->SetReset(line);

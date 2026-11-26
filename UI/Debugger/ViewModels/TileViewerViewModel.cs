@@ -24,9 +24,10 @@ namespace Mesen.Debugger.ViewModels
 	public partial class TileViewerViewModel : DisposableViewModel, ICpuTypeModel, IMouseOverViewerModel
 	{
 		public CpuType CpuType { get; set; }
+		public bool IsGenesis => CpuType == CpuType.GenesisM68K;
 
 		public TileViewerConfig Config { get; }
-		[ObservableProperty] public partial RefreshTimingViewModel RefreshTiming { get; private set; }
+		[ObservableProperty] public partial RefreshTimingViewModel? RefreshTiming { get; private set; }
 
 		[ObservableProperty] public partial DynamicBitmap ViewerBitmap { get; private set; }
 
@@ -70,6 +71,7 @@ namespace Mesen.Debugger.ViewModels
 		public int RowCount => Math.Clamp(Config.RowCount, 4, MaxRowCount);
 
 		private BaseState? _ppuState;
+		private readonly PictureViewer _pictureViewer;
 		private object _updateLock = new();
 		private byte[] _coreSourceData = Array.Empty<byte>();
 		private byte[] _sourceData = Array.Empty<byte>();
@@ -85,7 +87,8 @@ namespace Mesen.Debugger.ViewModels
 		{
 			Config = ConfigManager.Config.Debug.TileViewer.Clone();
 			CpuType = cpuType;
-			RefreshTiming = new RefreshTimingViewModel(Config.RefreshTiming, cpuType);
+			_pictureViewer = picViewer;
+			RefreshTiming = IsGenesis ? null : new RefreshTimingViewModel(Config.RefreshTiming, cpuType);
 
 			InitBitmap();
 
@@ -151,11 +154,18 @@ namespace Mesen.Debugger.ViewModels
 			AddDisposables(DebugShortcutManager.CreateContextMenu(picViewer, scrollViewer, new List<object> {
 				new ContextMenuAction() {
 					ActionType = ActionType.CopyToClipboard,
-					OnClick = () => wnd.Clipboard?.SetBitmapAsync(ViewerBitmap.CropBitmap(_previewCropRect))
+					IsEnabled = () => !IsGenesis || GetGenesisCopyBounds() != null,
+					OnClick = () => {
+						PixelRect? crop = IsGenesis ? GetGenesisCopyBounds() : _previewCropRect;
+						if(crop is { } bounds) {
+							wnd.Clipboard?.SetBitmapAsync(ViewerBitmap.CropBitmap(bounds));
+						}
+					}
 				},
 				new ContextMenuSeparator(),
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTile,
+					IsVisible = () => !IsGenesis,
 					HintText = () => $"{GridSizeX}px x {GridSizeY}px",
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.TileViewer_EditTile),
 					IsEnabled = () => GetSelectedTileAddress() >= 0,
@@ -163,6 +173,7 @@ namespace Mesen.Debugger.ViewModels
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTiles,
+					IsVisible = () => !IsGenesis,
 					SubActions = new() {
 						GetEditTileAction(1, 2, wnd),
 						GetEditTileAction(2, 1, wnd),
@@ -174,6 +185,7 @@ namespace Mesen.Debugger.ViewModels
 				new ContextMenuSeparator(),
 				new ContextMenuAction() {
 					ActionType = ActionType.ViewInMemoryViewer,
+					IsVisible = () => !IsGenesis,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.TileViewer_ViewInMemoryViewer),
 					IsEnabled = () => GetSelectedTileAddress() >= 0,
 					OnClick = () => {
@@ -215,7 +227,9 @@ namespace Mesen.Debugger.ViewModels
 			}));
 
 			AddDisposable(Config.ObserveProp(nameof(Config.StartAddress), () => {
-				RefreshData();
+				if(!IsGenesis) {
+					RefreshData();
+				}
 			}));
 
 			AddDisposable(Config.ObserveProp([nameof(Config.ColumnCount), nameof(Config.RowCount), nameof(Config.Format)], () => {
@@ -231,13 +245,20 @@ namespace Mesen.Debugger.ViewModels
 					MaxRowCount = 65536 / ColumnCount;
 
 					ApplyColumnRowCountRestrictions();
-					AddressIncrement = ColumnCount * RowCount * 8 * 8 * Config.Format.GetBitsPerPixel() / 8;
+					UpdateAddressIncrement();
 
-					RefreshData();
+					if(IsGenesis) {
+						RefreshTab();
+					} else {
+						RefreshData();
+					}
 				}, DispatcherPriority.MaxValue);
 			}));
 
 			AddDisposable(Config.ObserveProp(nameof(Config.Source), () => {
+				if(IsGenesis) {
+					return;
+				}
 				MaximumAddress = Math.Max(0, DebugApi.GetMemorySize(Config.Source) - 1);
 				if(Config.StartAddress > MaximumAddress) {
 					Config.StartAddress = 0;
@@ -291,14 +312,24 @@ namespace Mesen.Debugger.ViewModels
 		{
 			if(Config.Layout != TileLayout.Normal || Config.Format == TileFormat.PceSpriteBpp4) {
 				//Force multiple of 2 when in 8x16 or 16x16 display modes
-				Config.ColumnCount &= ~0x01;
+				Config.ColumnCount &= IsGenesis && Config.Layout == TileLayout.SingleLine16x16 ? ~0x03 : ~0x01;
 				Config.RowCount &= ~0x01;
 			}
 		}
 
-		[MemberNotNull(nameof(RefreshTiming))]
+		private void UpdateAddressIncrement()
+		{
+			int bytesPerCell = IsGenesis ? GridSizeY * 4 : 8 * 8 * Config.Format.GetBitsPerPixel() / 8;
+			AddressIncrement = ColumnCount * RowCount * bytesPerCell;
+		}
+
 		private void InitForCpuType()
 		{
+			if(IsGenesis) {
+				InitGenesis();
+				return;
+			}
+
 			RefreshTiming = new RefreshTimingViewModel(Config.RefreshTiming, CpuType);
 
 			string selectedPreset = Config.SelectedPreset;
@@ -456,7 +487,9 @@ namespace Mesen.Debugger.ViewModels
 			}
 
 			if(ViewerTooltip != null && ViewerMousePos != null) {
-				GetPreviewPanel(ViewerMousePos.Value, ViewerTooltip);
+				if(GetPreviewPanel(ViewerMousePos.Value, ViewerTooltip) == null && IsGenesis) {
+					ClearGenesisHover();
+				}
 			}
 		}
 
@@ -469,6 +502,11 @@ namespace Mesen.Debugger.ViewModels
 
 		public void RefreshData()
 		{
+			if(IsGenesis) {
+				RefreshGenesisData();
+				return;
+			}
+
 			_ppuState = DebugApi.GetPpuState(CpuType);
 
 			RefreshPalette();
@@ -486,6 +524,10 @@ namespace Mesen.Debugger.ViewModels
 
 		private void RefreshPalette()
 		{
+			if(IsGenesis) {
+				return;
+			}
+
 			DebugPaletteInfo palette = DebugApi.GetPaletteInfo(CpuType, new GetPaletteInfoOptions() { Format = Config.Format });
 			var paletteColors = palette.GetRgbPalette();
 			var rawPalette = palette.GetRawPalette();
@@ -515,7 +557,17 @@ namespace Mesen.Debugger.ViewModels
 
 		private void InternalRefreshTab()
 		{
-			if(Disposed || PaletteColors.Length == 0) {
+			if(Disposed) {
+				return;
+			}
+
+			if(IsGenesis) {
+				DrawGenesisTiles();
+				UpdatePreviewPanel();
+				return;
+			}
+
+			if(PaletteColors.Length == 0) {
 				return;
 			}
 
@@ -542,6 +594,10 @@ namespace Mesen.Debugger.ViewModels
 
 		private int GetTileAddress(PixelPoint pixelPosition)
 		{
+			if(IsGenesis) {
+				return GetGenesisTileAddress(pixelPosition.X / 8, pixelPosition.Y / GridSizeY);
+			}
+
 			PixelSize tileSize = Config.Format.GetTileSize();
 			int bytesPerTile = Config.Format.GetBytesPerTile();
 			PixelPoint pos = FromLayoutCoordinates(Config.Layout, new PixelPoint(pixelPosition.X / tileSize.Width, pixelPosition.Y / tileSize.Height));
@@ -566,12 +622,15 @@ namespace Mesen.Debugger.ViewModels
 
 		public DynamicTooltip? GetPreviewPanel(PixelPoint p, DynamicTooltip? tooltipToUpdate)
 		{
+			if(IsGenesis && !IsGenesisTileVisible(p)) {
+				return null;
+			}
+
 			TooltipEntries entries = tooltipToUpdate?.Items ?? new();
 
 			entries.StartUpdate();
 
-			PixelSize tileSize = Config.Format.GetTileSize();
-			PixelRect cropRect = new PixelRect(p.X / tileSize.Width * tileSize.Width, p.Y / tileSize.Height * tileSize.Height, tileSize.Width, tileSize.Height);
+			PixelRect cropRect = GetTileBounds(p);
 			_previewCropRect = cropRect;
 			entries.AddPicture("Tile", ViewerBitmap, 6, cropRect);
 
@@ -587,7 +646,9 @@ namespace Mesen.Debugger.ViewModels
 				entries.AddEntry("Tile address", FormatAddress(address, Config.Source));
 			}
 
-			if(ShowNesTileIndex) {
+			if(IsGenesis && address % (GridSizeY * 4) == 0) {
+				entries.AddEntry("Tile index", $"${address / (GridSizeY * 4):X3}");
+			} else if(ShowNesTileIndex) {
 				entries.AddEntry("Tile index", "$" + ((address >> 4) & 0xFF).ToString("X2"));
 			}
 
@@ -598,6 +659,12 @@ namespace Mesen.Debugger.ViewModels
 			} else {
 				return new DynamicTooltip() { Items = entries };
 			}
+		}
+
+		private PixelRect GetTileBounds(PixelPoint point)
+		{
+			PixelSize size = IsGenesis ? new PixelSize(8, GridSizeY) : Config.Format.GetTileSize();
+			return new PixelRect(point.X / size.Width * size.Width, point.Y / size.Height * size.Height, size.Width, size.Height);
 		}
 
 		private string FormatAddress(int address, MemoryType memType)
@@ -621,6 +688,10 @@ namespace Mesen.Debugger.ViewModels
 
 		private void EditTileGrid(int columnCount, int rowCount, Window wnd)
 		{
+			if(RefreshTiming is not { } timing) {
+				return;
+			}
+
 			PixelPoint p = ViewerMousePos ?? PixelPoint.FromPoint(SelectionRect.TopLeft, 1);
 			List<TileAddressInfo> addresses = new();
 			for(int row = 0; row < rowCount; row++) {
@@ -635,8 +706,8 @@ namespace Mesen.Debugger.ViewModels
 				SelectedPalette,
 				wnd,
 				CpuType,
-				RefreshTiming.ConsoleConfig.RefreshScanline,
-				RefreshTiming.ConsoleConfig.RefreshCycle
+				timing.ConsoleConfig.RefreshScanline,
+				timing.ConsoleConfig.RefreshCycle
 			);
 		}
 
@@ -697,7 +768,7 @@ namespace Mesen.Debugger.ViewModels
 		private void InitBitmap()
 		{
 			int width = ColumnCount * 8;
-			int height = RowCount * 8;
+			int height = RowCount * (IsGenesis ? GridSizeY : 8);
 			if(ViewerBitmap == null || ViewerBitmap.PixelSize.Width != width || ViewerBitmap.PixelSize.Height != height) {
 				ViewerBitmap = new DynamicBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 			}

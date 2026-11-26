@@ -22,6 +22,10 @@ enum class GenesisRegion
 // M68K clock = master / 7, Z80 clock = master / 15, VDP pixel = master / 10 (H40) or / 8 (H32).
 inline constexpr uint32_t GenesisMasterClockNtsc = 53693175;
 inline constexpr uint32_t GenesisMasterClockPal = 53203424;
+inline constexpr uint32_t GenesisM68kClockDivider = 7;
+inline constexpr uint32_t GenesisZ80ClockDivider = 15;
+inline constexpr uint32_t GenesisAudioSampleRate = 96000;
+inline constexpr uint32_t GenesisAudioBufferSize = 4000;
 
 // VDP visible area with full overscan. Matches ares visibleHeight():
 // NTSC = 243 lines, PAL = 294 lines. Width: H32=256, H40=320.
@@ -29,6 +33,8 @@ inline constexpr uint32_t GenesisScreenWidthH32 = 256;
 inline constexpr uint32_t GenesisScreenWidthH40 = 320;
 inline constexpr uint32_t GenesisScreenHeightNtsc = 243;
 inline constexpr uint32_t GenesisScreenHeightPal = 294;
+inline constexpr uint32_t GenesisScreenHeightV28 = 224;
+inline constexpr uint32_t GenesisScreenHeightV30 = 240;
 
 // SN76489 PSG state (same chip as SMS, algorithm adapted from Core/SMS/SmsPsg).
 // The Genesis clocks the SN76489 at Z80 clock = master/15, and the chip

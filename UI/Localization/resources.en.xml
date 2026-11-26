@@ -689,11 +689,22 @@
 
 		<Form ID="GenesisConfigView">
 			<Control ID="tpgGeneral">General</Control>
+			<Control ID="tpgAudio">Audio</Control>
+			<Control ID="tpgEmulation">Emulation</Control>
 			<Control ID="tpgInput">Input</Control>
+			<Control ID="tpgVideo">Video</Control>
 			<Control ID="grpControllers">Controllers</Control>
 			<Control ID="lblController1">Port 1:</Control>
 			<Control ID="lblController2">Port 2:</Control>
 			<Control ID="lblRegion">Region:</Control>
+			<Control ID="grpVolume">Volume</Control>
+			<Control ID="lblYm2612Volume">YM2612 (FM)</Control>
+			<Control ID="lblPsgVolume">PSG</Control>
+			<Control ID="lblDeveloperSettings">Developer Settings</Control>
+			<Control ID="lblRamPowerOnState">RAM power-on state:</Control>
+			<Control ID="lblOverscan">Overscan</Control>
+			<Control ID="lblOverscanNtsc">NTSC</Control>
+			<Control ID="lblOverscanPal">PAL</Control>
 		</Form>
 
 		<Form ID="ConfigWindow">
@@ -1128,6 +1139,13 @@
 		
 		<Form ID="TilemapViewerWindow">
 			<Control ID="wndTitle">Tilemap Viewer</Control>
+			<Control ID="wndGenesisTitle">VDP Viewer</Control>
+			<Control ID="tabGenesisSprites">Sprites</Control>
+			<Control ID="lblGenesisSpriteTable">Sprite Table</Control>
+			<Control ID="lblGenesisSelectedSprite">Selected Sprite</Control>
+			<Control ID="lblGenesisWaiting">Waiting for a completed frame…</Control>
+			<Control ID="lblGenesisFrame">Frame {0}</Control>
+			<Control ID="lblGenesisSpriteFrame">Frame {0} · End-of-frame sprite table preview</Control>
 
 			<Control ID="mnuFile">_File</Control>
 			<Control ID="mnuView">_View</Control>
@@ -1820,6 +1838,9 @@
 		</Form>
 	</Forms>
 	<Messages>
+		<Message ID="GenesisViewerWaitingForFrame">Waiting for a completed frame…</Message>
+		<Message ID="GenesisTileViewerFrame">Frame {0} · VRAM {1} KiB · 8×{2} tiles</Message>
+		<Message ID="GenesisPaletteViewerFrame">Frame {0} · CRAM</Message>
 		<Message ID="LastSession">Last Session</Message>
 		<Message ID="AutoSave">Auto-save</Message>
 		<Message ID="SlotNumber">Slot #{0}</Message>
@@ -2909,6 +2930,7 @@ E
 		</Enum>
 		
 		<Enum ID="MemoryType">
+			<Value ID="GenesisVdpVram">VRAM</Value>
 			<Value ID="SnesMemory">CPU Memory</Value>
 			<Value ID="SpcMemory">SPC Memory</Value>
 			<Value ID="Sa1Memory">SA-1 Memory</Value>

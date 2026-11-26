@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <array>
 #include "Genesis/GenesisVdp.h"
 #include "Genesis/GenesisM68K.h"
 #include "Genesis/GenesisConsole.h"
@@ -16,7 +17,9 @@
 GenesisVdp::GenesisVdp(Emulator* emu, GenesisConsole* console)
 	: _emu(emu), _console(console)
 {
-	_framebuffer.resize(MaxWidth * MaxHeight, 0);
+	for(auto& buffer : _framebuffers) {
+		buffer.resize(MaxWidth * MaxHeight, 0);
+	}
 	DmaRead = [](uint32_t) -> uint16_t { return 0xFFFF; };
 	_region = ConsoleRegion::Ntsc;
 }
@@ -38,6 +41,8 @@ void GenesisVdp::Power()
 	_irq = {};
 	_testAddress = 0;
 	_frameCount = 0;
+	_frameOverscan = false;
+	InvalidateDebugSnapshot();
 	_fifo.Power();
 	_prefetch.Power();
 	_dma.Power();
@@ -59,6 +64,8 @@ void GenesisVdp::Reset()
 	_irq = {};
 	_testAddress = 0;
 	_busPenalty = 0;
+	_frameOverscan = false;
+	InvalidateDebugSnapshot();
 	_fifo.Power();
 	_prefetch.Power();
 	_dma.Power();
@@ -101,12 +108,17 @@ void GenesisVdp::RunScanline()
 	_latch.displayWidth = _io.displayWidth;
 	_latch.clockSelect = _io.clockSelect;
 	_state.edclkPos = 0;
+	if(_debugCaptureFrame && _state.vcounter < GenesisScreenHeightV30) {
+		_debugFrames[_debugWriteIndex].Lines[_state.vcounter].Count = 0;
+	}
 
+	_debugInScanline = true;
 	if(H32()) {
 		MainH32();
 	} else {
 		MainH40();
 	}
+	_debugInScanline = false;
 
 	if(_state.vcounter == _state.bottomline) {
 		_latch.interlace = _io.interlaceMode & 1;
@@ -309,17 +321,200 @@ void GenesisVdp::TickAndRefresh()
 
 //--- Framebuffer management ---
 
-void GenesisVdp::ClearFramebuffer()
+void GenesisVdp::BeginFrame()
 {
+	//The decoder may still be reading the last submitted frame.
+	_renderBufferIndex = _submittedBufferIndex ^ 1;
+	auto& buffer = _framebuffers[_renderBufferIndex];
 	uint32_t bgColor = Color(_cram[_io.backgroundColor], 1);
-	std::fill(_framebuffer.begin(), _framebuffer.end(), bgColor);
+	std::fill(buffer.begin(), buffer.end(), bgColor);
+
+	_debugCaptureFrame = !_emu->IsRunAheadFrame();
+	if(_debugCaptureFrame) {
+		auto& frame = _debugFrames[_debugWriteIndex];
+		frame.HscrollWriteCount = 0;
+		frame.HscrollWritesTruncated = false;
+		for(auto& line : frame.Lines) {
+			line.Count = 0;
+			line.Hscroll = {};
+		}
+	}
 }
 
-//--- Get line buffer for current scanline ---
+void GenesisVdp::MarkFrameSubmitted()
+{
+	_submittedBufferIndex = _renderBufferIndex;
+
+	auto& frame = _debugFrames[_debugWriteIndex];
+	uint16_t base = GetSpriteTableWordAddress();
+	frame.State = {
+		_frameCount,
+		GetScreenWidth(),
+		GetScreenHeight(),
+		_state.vcounter,
+		_state.hcounter,
+		uint32_t(base) * 2,
+		_io.interlaceMode,
+		_sprite.FrameObjectLimit(H40()),
+		0,
+	};
+	for(uint32_t i = 0; i < frame.State.SpriteCount; i++) {
+		uint16_t address = base + i * 4;
+		const auto& cached = _sprite.cache[i];
+		frame.Sprites[i] = {
+			VramReadWord(_vram, _vramMode, address),
+			VramReadWord(_vram, _vramMode, address + 1),
+			VramReadWord(_vram, _vramMode, address + 2),
+			VramReadWord(_vram, _vramMode, address + 3),
+			cached.y,
+			PackSpriteSizeLink(cached),
+		};
+	}
+
+	uint32_t columns = 32 * (1 + _layers.nametableWidth);
+	uint32_t rows = 32 * (1 + _layers.nametableHeight);
+	if(_layers.nametableHeight == 2) {
+		rows = 64;
+	}
+	if(_layers.nametableWidth == 2) {
+		columns = 32;
+		rows = 1;
+	}
+	frame.Graphics = {
+		_vramMode,
+		columns,
+		rows,
+		_io.backgroundColor,
+		_layerA.nametableAddress,
+		_layerB.nametableAddress,
+		_layerA.generatorAddress,
+		_layerB.generatorAddress,
+		_sprite.generatorAddress,
+		(0u - VramReadWord(_vram, _vramMode, _layers.hscrollAddress)) & 0x3FF,
+		uint32_t(_vsram[0] & 0x7FF),
+		(0u - VramReadWord(_vram, _vramMode, _layers.hscrollAddress + 1)) & 0x3FF,
+		uint32_t(_vsram[1] & 0x7FF),
+	};
+	std::copy_n(_vram, VRAMSize, frame.Vram);
+	for(uint32_t i = 0; i < CRAMSize; i++) {
+		frame.Palette[i] = Color(_cram[i], 1);
+		frame.Cram[i] = _cram[i];
+	}
+
+	std::lock_guard lock(_debugFrameMutex);
+	_debugWriteIndex ^= 1;
+	_debugFrameReady = true;
+}
+
+bool GenesisVdp::GetDebugSnapshot(int32_t scanline, GenesisVdpDebugState& state, GenesisVdpDebugSprite* sprites, GenesisVdpDebugMapping* mappings, GenesisVdpDebugHscroll& hscroll, GenesisVdpDebugHscrollWrites* writes)
+{
+	std::lock_guard lock(_debugFrameMutex);
+	if(!_debugFrameReady) {
+		return false;
+	}
+
+	const auto& frame = _debugFrames[_debugWriteIndex ^ 1];
+	state = frame.State;
+	hscroll = {};
+	if(writes) {
+		writes->Count = 0;
+		writes->Truncated = 0;
+	}
+	std::copy_n(frame.Sprites, state.SpriteCount, sprites);
+	if(scanline >= 0 && uint32_t(scanline) < state.Height) {
+		const auto& line = frame.Lines[scanline];
+		state.MappingCount = line.Count;
+		std::copy_n(line.Mappings, state.MappingCount, mappings);
+		hscroll = line.Hscroll;
+		if(hscroll.Captured) {
+			uint16_t address = uint16_t(hscroll.EntryAddress / 2);
+			hscroll.FrameEndRawA = VramReadWord(frame.Vram, hscroll.VramMode, address);
+			hscroll.FrameEndRawB = VramReadWord(frame.Vram, hscroll.VramMode, address + 1);
+			if(writes) {
+				CopyHscrollWrites(frame, line, *writes);
+			}
+		}
+	}
+	return true;
+}
+
+void GenesisVdp::CopyHscrollWrites(const DebugFrame& frame, const DebugLine& line, GenesisVdpDebugHscrollWrites& writes)
+{
+	const auto& fetch = line.Hscroll;
+	uint32_t addressMask = fetch.VramMode == 0 ? 0xFFFFu : 0x1FFFFu;
+	uint32_t entryAddress = fetch.EntryAddress & addressMask;
+	writes.Truncated = frame.HscrollWritesTruncated;
+	for(uint32_t i = 0; i < frame.HscrollWriteCount; i++) {
+		const auto& change = frame.HscrollWrites[i];
+		if(change.VramMode != fetch.VramMode || ((change.Address - entryAddress) & addressMask) >= 4) {
+			continue;
+		}
+		if(writes.Count == GenesisVdpDebugHscrollWrites::MaxCount) {
+			writes.Truncated = 1;
+			break;
+		}
+		auto& result = writes.Changes[writes.Count++];
+		result = change;
+		result.BeforeFetch = i < line.HscrollWriteIndex;
+	}
+}
+
+bool GenesisVdp::GetDebugGraphics(GenesisVdpDebugState& state, GenesisVdpDebugGraphics& graphics, GenesisVdpDebugSprite* sprites, uint16_t* vram, uint32_t* palette, uint32_t* cram)
+{
+	std::lock_guard lock(_debugFrameMutex);
+	if(!_debugFrameReady) {
+		return false;
+	}
+
+	const auto& frame = _debugFrames[_debugWriteIndex ^ 1];
+	state = frame.State;
+	graphics = frame.Graphics;
+	if(sprites) {
+		std::copy_n(frame.Sprites, state.SpriteCount, sprites);
+	}
+	std::copy_n(frame.Vram, VRAMSize, vram);
+	std::copy_n(frame.Palette, CRAMSize, palette);
+	if(cram) {
+		std::copy_n(frame.Cram, CRAMSize, cram);
+	}
+	return true;
+}
+
+bool GenesisVdp::GetDebugPalette(uint32_t& frameCount, uint32_t* palette, uint32_t* cram)
+{
+	std::lock_guard lock(_debugFrameMutex);
+	if(!_debugFrameReady) {
+		return false;
+	}
+
+	const auto& frame = _debugFrames[_debugWriteIndex ^ 1];
+	frameCount = frame.State.FrameCount;
+	std::copy_n(frame.Palette, CRAMSize, palette);
+	std::copy_n(frame.Cram, CRAMSize, cram);
+	return true;
+}
+
+void GenesisVdp::InvalidateDebugSnapshot()
+{
+	std::lock_guard lock(_debugFrameMutex);
+	_debugFrameReady = false;
+}
+
+uint32_t GenesisVdp::GetTopBorder(bool overscan) const
+{
+	if(_region != ConsoleRegion::Pal) {
+		return 11;
+	}
+	return overscan ? 30 : 38;
+}
 
 uint32_t* GenesisVdp::GetLineBuffer()
 {
 	uint32_t y = _state.vcounter;
+	if(y == 0) {
+		//Keep the viewport aligned with the mode used to draw the active rows.
+		_frameOverscan = _latch.overscan;
+	}
 
 	//Pixel blanking range — matches ares vdp.cpp pixels():
 	//NTSC:          y >= 0x0E8 && y < 0x1F5  → nullptr
@@ -347,29 +542,24 @@ uint32_t* GenesisVdp::GetLineBuffer()
 		if(y >= 0x0E8) {
 			y -= (0x1F5 - 0x0E8); //y -= 0x10D
 		}
-		y += 11;
-		y = y % 243;
 	} else {
 		if(_latch.overscan) {
 			if(y >= 0x108) {
 				y -= (0x1E2 - 0x108); //y -= 0xDA
 			}
-			y += 30;
-			y = y % 294;
 		} else {
 			if(y >= 0x100) {
 				y -= (0x1DA - 0x100); //y -= 0xDA
 			}
-			y += 38;
-			y = y % 294;
 		}
 	}
+	y = (y + GetTopBorder(_latch.overscan)) % GetVisibleHeight();
 
 	//Safety: if y exceeds MaxHeight, skip (shouldn't happen)
 	if(y >= MaxHeight) {
 		return nullptr;
 	}
-	return _framebuffer.data() + y * MaxWidth;
+	return GetRenderBuffer() + y * MaxWidth;
 }
 
 //--- Main scanline loops ---
@@ -682,7 +872,7 @@ uint16_t GenesisVdp::Read(uint32_t address)
 	return 0xFFFF;
 }
 
-void GenesisVdp::Write(uint32_t address, uint16_t data)
+void GenesisVdp::Write(uint32_t address, uint16_t data, uint64_t masterClock)
 {
 	//Genesis VDP address decode (mirrored every 32 bytes within 0xC00000-0xDFFFFF):
 	//  0xC00000-0xC00003: Data port
@@ -699,9 +889,10 @@ void GenesisVdp::Write(uint32_t address, uint16_t data)
 		_busPenalty += 16;
 	}
 
-	//Update FIFO drain cycle tracking — cycles spent on VDP writes don't
-	//accumulate as FIFO drain credit (VRAM bus is busy during writes).
-	_lastFifoDrainCycle = _m68kCycleInScanline;
+	//The data port accounts for elapsed cycles before updating this marker.
+	if(decode != 0x00 && decode != 0x02) {
+		_lastFifoDrainCycle = _m68kCycleInScanline;
+	}
 
 	switch(decode) {
 		case 0x00:
@@ -717,7 +908,7 @@ void GenesisVdp::Write(uint32_t address, uint16_t data)
 		case 0x16: {
 			//PSG: ares forwards to psg.write(data.byte(0)) for word writes.
 			//Only the low byte of the word is used.
-			_console->GetPsg()->Write(data & 0xFF);
+			_console->GetPsg()->Write(data & 0xFF, masterClock);
 			break;
 		}
 		case 0x18:
@@ -786,22 +977,8 @@ void GenesisVdp::WriteDataPort(uint16_t data)
 	_command.latch = 0;
 	_command.ready = 1;
 
-	//Simulate VDP progress when DMA Fill is active.
-	//In ares's co-routine model, the M68K and VDP run concurrently: while
-	//the M68K executes a delay loop between the seed write and the update
-	//write, the VDP processes slots — draining the seed FIFO entry and
-	//running several DMA Fill iterations. When the M68K finally writes the
-	//data port, the FIFO seed entry has already been processed (updating
-	//_dma.data via FIFO::Advance) and the DMA Fill has progressed.
-	//In Mesen2's sequential model, the VDP runs a full scanline BEFORE the
-	//M68K, so DMA Fill doesn't progress between M68K writes. Both FIFO
-	//entries (seed + update) are processed at once during status register
-	//polling, causing the DMA Fill to use only the last data value.
-	//Fix: simulate VDP slot progress proportional to M68K cycles elapsed
-	//since the last VDP access. This drains the seed FIFO entry (updating
-	//_dma.data) and runs several DMA Fill iterations before the new write.
-	//Must happen BEFORE saving target/address, so the new FIFO entry is
-	//created at the current DMA Fill position (synced from _dma.address).
+	//The VDP runs the whole scanline before the M68K. Give the pending DMA
+	//fill time to process older FIFO entries before queuing the new write.
 	if(_command.pending && _dma.mode == 2 && _m68kCyclesPerScanline > 0) {
 		//Clear latency and preload so FIFO entries can be processed
 		for(auto& s : _fifo.slots) {
@@ -820,8 +997,6 @@ void GenesisVdp::WriteDataPort(uint16_t data)
 		} else {
 			_fifoDrainCredit += cycleDiff;
 		}
-		_lastFifoDrainCycle = _m68kCycleInScanline;
-
 		//Process slots: each slot is ~(_m68kCyclesPerScanline/18) cycles.
 		//Slot order matches ares: if rambusy, clear it (slot consumed);
 		//else if FIFO has data, run 1 byte (sets rambusy); else if DMA Fill
@@ -873,6 +1048,7 @@ void GenesisVdp::WriteDataPort(uint16_t data)
 			_command.address = _dma.address;
 		}
 	}
+	_lastFifoDrainCycle = _m68kCycleInScanline;
 
 	//Save command address/target before any FIFO operation, because DMA
 	//execution modifies _command.address and potentially _command.target.
@@ -909,7 +1085,7 @@ void GenesisVdp::WriteDataPort(uint16_t data)
 		}
 		_state.rambusy = 0;
 	}
-	_fifo.Write(target, address, data);
+	_fifo.Write(target, address, data, { DebugWriteSource::CpuDataPort });
 	_command.address = (_command.address + _command.increment) & 0x1FFFF;
 }
 
@@ -1032,12 +1208,6 @@ uint16_t GenesisVdp::ReadControlPort()
 
 void GenesisVdp::WriteControlPort(uint16_t data)
 {
-	//Pre-write DrainFifo removed: draining before the control port write
-	//would flush FIFO entries (including the DMA Fill value) before the
-	//DMA trigger can process them. The FIFO now retains entries until
-	//drained by the post-LATCH2 DrainFifo (for DMA trigger) or by
-	//RunScanline (for normal rendering).
-
 	//If a DMA is still pending (e.g., CRAM DMA was skipped by DrainFifo
 	//to preserve Direct Color DMA entries), complete it now before the
 	//new command modifies _command state. In ares, the DMA runs
@@ -1063,6 +1233,13 @@ void GenesisVdp::WriteControlPort(uint16_t data)
 			_dma.target = _command.target;
 			_dma.address = _command.address;
 			_dma.increment = _command.increment;
+			if(_dma.mode == 2 && _dma.target == 1) {
+				//Writes queued before this command cannot start the VRAM fill.
+				_dma.wait = 1;
+				_dma.fifoEntriesBeforeFill = _fifo.PendingCount();
+			} else {
+				_dma.fifoEntriesBeforeFill = 0;
+			}
 		}
 		_prefetch.Read(_command.target, _command.address);
 		if(_command.pending && _dma.mode != 2) {
@@ -1237,15 +1414,48 @@ uint8_t GenesisVdp::VramReadByte(const uint16_t* vram, uint8_t mode, uint32_t ad
 	return (address & 1) ? (word & 0xFF) : (word >> 8);
 }
 
-void GenesisVdp::VramWriteByte(uint16_t* vram, uint8_t mode, uint32_t address, uint8_t data)
+void GenesisVdp::WriteVramByte(uint32_t address, uint8_t data, DebugWriteOrigin origin)
 {
-	uint16_t word = VramReadWord(vram, mode, (uint16_t)(address >> 1));
-	if(address & 1) {
-		word = (word & 0xFF00) | data;
-	} else {
-		word = (word & 0x00FF) | (data << 8);
+	uint16_t wordAddress = uint16_t(address >> 1);
+	uint16_t previous = VramReadWord(_vram, _vramMode, wordAddress);
+	uint16_t word = (address & 1) ? (previous & 0xFF00) | data : (previous & 0x00FF) | (data << 8);
+	VramWriteWord(_vram, _vramMode, wordAddress, word);
+	if(_debugCaptureFrame) {
+		RecordHscrollWrite(address, previous, origin);
 	}
-	VramWriteWord(vram, mode, (uint16_t)(address >> 1), word);
+}
+
+void GenesisVdp::RecordHscrollWrite(uint32_t address, uint16_t previousWord, DebugWriteOrigin origin)
+{
+	uint32_t addressMask = _vramMode == 0 ? 0xFFFFu : 0x1FFFFu;
+	uint32_t tableAddress = uint32_t(_layers.hscrollAddress) * 2;
+	//Line-scroll mode can index 256 entries of two words each.
+	if(((address - tableAddress) & addressMask) >= 256 * 4) {
+		return;
+	}
+
+	uint16_t word = VramReadWord(_vram, _vramMode, uint16_t(address >> 1));
+	if(word == previousWord) {
+		return;
+	}
+
+	auto& frame = _debugFrames[_debugWriteIndex];
+	if(frame.HscrollWriteCount == DebugHscrollWriteCapacity) {
+		frame.HscrollWritesTruncated = true;
+		return;
+	}
+	frame.HscrollWrites[frame.HscrollWriteCount++] = {
+		address & addressMask,
+		origin.Address,
+		previousWord,
+		word,
+		uint16_t(_state.vcounter),
+		uint16_t(_state.hcounter),
+		uint8_t(origin.Source),
+		_vramMode,
+		_debugInScanline,
+		0,
+	};
 }
 
 //--- FIFO ---
@@ -1395,7 +1605,9 @@ void GenesisVdp::FIFO::Tick()
 
 void GenesisVdp::FIFO::Advance(GenesisVdp& vdp)
 {
-	if(vdp._command.pending && vdp._dma.mode == 2) {
+	if(vdp._dma.fifoEntriesBeforeFill > 0) {
+		vdp._dma.fifoEntriesBeforeFill--;
+	} else if(vdp._command.pending && vdp._dma.mode == 2) {
 		if(slots[0].target == 1) {
 			vdp._dma.data = slots[0].data;
 		} else {
@@ -1444,14 +1656,14 @@ bool GenesisVdp::FIFO::Run(GenesisVdp& vdp)
 	if(slots[0].target == 1 && vdp._vramMode == 0) {
 		if(slots[0].lower) {
 			slots[0].lower = 0;
-			VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address ^ 1, slots[0].data & 0xFF);
+			vdp.WriteVramByte(slots[0].address ^ 1, slots[0].data & 0xFF, slots[0].DebugOrigin);
 			//ares VRAM::writeByte → VRAM::write → sprite.write — update sprite cache
 			vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 			return true;
 		}
 		if(slots[0].upper) {
 			slots[0].upper = 0;
-			VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address, slots[0].data >> 8);
+			vdp.WriteVramByte(slots[0].address, slots[0].data >> 8, slots[0].DebugOrigin);
 			vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 			Advance(vdp);
 			return true;
@@ -1476,7 +1688,7 @@ bool GenesisVdp::FIFO::Run(GenesisVdp& vdp)
 			vdp._vsram[addr] = slots[0].data & 0x7FF;
 		}
 	} else if(slots[0].target == 1 && vdp._vramMode == 1) {
-		VramWriteByte(vdp._vram, vdp._vramMode, slots[0].address | 1, slots[0].data & 0xFF);
+		vdp.WriteVramByte(slots[0].address | 1, slots[0].data & 0xFF, slots[0].DebugOrigin);
 		vdp._sprite.VramWrite(vdp, slots[0].address >> 1, VramReadWord(vdp._vram, vdp._vramMode, slots[0].address >> 1));
 	}
 
@@ -1486,7 +1698,7 @@ bool GenesisVdp::FIFO::Run(GenesisVdp& vdp)
 	return true;
 }
 
-void GenesisVdp::FIFO::Write(uint8_t target, uint32_t address, uint16_t data)
+void GenesisVdp::FIFO::Write(uint8_t target, uint32_t address, uint16_t data, DebugWriteOrigin origin)
 {
 	for(auto& s : slots) {
 		if(s.empty()) {
@@ -1496,6 +1708,7 @@ void GenesisVdp::FIFO::Write(uint8_t target, uint32_t address, uint16_t data)
 			s.upper = 1;
 			s.lower = 1;
 			s.latency = 2;
+			s.DebugOrigin = origin;
 			return;
 		}
 	}
@@ -1506,6 +1719,18 @@ void GenesisVdp::FIFO::Power()
 	for(auto& s : slots) {
 		s = {};
 	}
+}
+
+uint8_t GenesisVdp::FIFO::PendingCount() const
+{
+	uint8_t count = 0;
+	for(const auto& slot : slots) {
+		if(slot.empty()) {
+			break;
+		}
+		count++;
+	}
+	return count;
 }
 
 //--- Prefetch ---
@@ -1641,7 +1866,7 @@ bool GenesisVdp::DMA::Run(GenesisVdp& vdp)
 void GenesisVdp::DMA::Load(GenesisVdp& vdp)
 {
 	read = 0;
-	vdp._fifo.Write(target, address, data);
+	vdp._fifo.Write(target, address, data, { DebugWriteSource::DmaLoad, (uint32_t(mode & 1) << 23) | (source << 1) });
 	source = (source & 0x3F0000) | ((source + 1) & 0xFFFF);
 	address = (address + increment) & 0x1FFFF;
 	if(--length == 0) {
@@ -1660,7 +1885,7 @@ void GenesisVdp::DMA::Fill(GenesisVdp& vdp)
 {
 	switch(target) {
 		case 1:
-			VramWriteByte(vdp._vram, vdp._vramMode, address ^ 1, data >> 8);
+			vdp.WriteVramByte(address ^ 1, data >> 8, { DebugWriteSource::DmaFill });
 			vdp._sprite.VramWrite(vdp, address >> 1, VramReadWord(vdp._vram, vdp._vramMode, address >> 1));
 			break;
 		case 3: {
@@ -1696,7 +1921,7 @@ void GenesisVdp::DMA::Copy(GenesisVdp& vdp)
 		return;
 	}
 	read = 0;
-	VramWriteByte(vdp._vram, vdp._vramMode, address ^ 1, data & 0xFF);
+	vdp.WriteVramByte(address ^ 1, data & 0xFF, { DebugWriteSource::DmaCopy, (source ^ 1) & 0x1FFFF });
 	vdp._sprite.VramWrite(vdp, address >> 1, VramReadWord(vdp._vram, vdp._vramMode, address >> 1));
 	vdp._state.rambusy = 1;
 	source = (source & 0x3F0000) | ((source + 1) & 0xFFFF);
@@ -1716,6 +1941,7 @@ void GenesisVdp::DMA::Power()
 	length = 0;
 	data = 0;
 	wait = 1;
+	fifoEntriesBeforeFill = 0;
 	read = 0;
 	enable = 0;
 	preload = 0;
@@ -1737,6 +1963,25 @@ void GenesisVdp::Layers::HscrollFetch(GenesisVdp& vdp)
 	address += ((uint8_t)vdp._state.vcounter & mask[hscrollMode]) << 1;
 	vdp._layerA.hscroll = VramReadWord(vdp._vram, vdp._vramMode, address);
 	vdp._layerB.hscroll = VramReadWord(vdp._vram, vdp._vramMode, address + 1);
+
+	uint32_t scanline = vdp._state.vcounter;
+	if(vdp._debugCaptureFrame && scanline < GenesisScreenHeightV30) {
+		auto& frame = vdp._debugFrames[vdp._debugWriteIndex];
+		auto& line = frame.Lines[scanline];
+		line.HscrollWriteIndex = frame.HscrollWriteCount;
+		line.Hscroll = {
+			1,
+			hscrollMode,
+			vdp._vramMode,
+			vdp._state.hcounter,
+			uint32_t(hscrollAddress) * 2,
+			uint32_t(address) * 2,
+			vdp._layerA.hscroll,
+			vdp._layerB.hscroll,
+			0,
+			0,
+		};
+	}
 }
 
 void GenesisVdp::Layers::VscrollFetch(GenesisVdp& vdp)
@@ -1936,13 +2181,19 @@ void GenesisVdp::Layer::Power()
 
 //--- Sprite ---
 
+uint16_t GenesisVdp::GetSpriteTableWordAddress() const
+{
+	return H40() ? (_sprite.nametableAddress & ~0x1FF) : _sprite.nametableAddress;
+}
+
+uint16_t GenesisVdp::PackSpriteSizeLink(const SpriteCache& sprite)
+{
+	return (sprite.width << 10) | (sprite.height << 8) | sprite.link;
+}
+
 void GenesisVdp::Sprite::VramWrite(GenesisVdp& vdp, uint16_t address, uint16_t data)
 {
-	auto baseAddress = nametableAddress;
-	if(vdp.H40()) {
-		baseAddress &= ~0x1FF;
-	}
-	address -= baseAddress;
+	address -= vdp.GetSpriteTableWordAddress();
 	uint32_t limit = vdp.H40() ? 80 : 64;
 	if(address >= limit * 8 / 2) {
 		return;
@@ -2017,10 +2268,7 @@ void GenesisVdp::Sprite::MappingFetch(GenesisVdp& vdp, uint32_t)
 	auto& object = cache[id];
 	auto height = (1 + object.height) << (3 + interlace);
 
-	auto baseAddress = nametableAddress;
-	if(vdp.H40()) {
-		baseAddress &= ~0x1FF;
-	}
+	auto baseAddress = vdp.GetSpriteTableWordAddress();
 
 	auto& mapping = mappings[mappingCount++];
 	auto address = baseAddress + id * 4 + 2;
@@ -2035,6 +2283,13 @@ void GenesisVdp::Sprite::MappingFetch(GenesisVdp& vdp, uint32_t)
 	mapping.palette = (d2 >> 13) & 3;
 	mapping.priority = (d2 >> 15) & 1;
 	mapping.x = d3 & 0x1FF;
+
+	uint32_t scanline = vdp._state.vcounter;
+	if(vdp._debugCaptureFrame && scanline < GenesisScreenHeightV30 && mappingCount <= DebugMappingsPerLine) {
+		auto& line = vdp._debugFrames[vdp._debugWriteIndex].Lines[scanline];
+		line.Mappings[mappingCount - 1] = { id, object.y, PackSpriteSizeLink(object), d2, d3, uint16_t(baseAddress * 2) };
+		line.Count = mappingCount;
+	}
 
 	y = y - (object.y & (interlace ? 1023 : 511));
 	if((d2 >> 12) & 1) {
@@ -2323,10 +2578,11 @@ void GenesisVdp::DAC::FillRightBorder(GenesisVdp& vdp)
 	uint32_t bgColor = Color(vdp._cram[vdp._io.backgroundColor], 1);
 	//Right border fills remaining pixels after the visible area
 	//In our flat framebuffer, we just fill to the end of the line
-	uint32_t pos = (uint32_t)(active - vdp._framebuffer.data());
+	uint32_t* buffer = vdp.GetRenderBuffer();
+	uint32_t pos = (uint32_t)(active - buffer);
 	uint32_t lineStart = pos - (pos % MaxWidth);
 	uint32_t lineEnd = lineStart + MaxWidth;
-	while(active < (uint32_t*)vdp._framebuffer.data() + lineEnd) {
+	while(active < buffer + lineEnd) {
 		*active++ = bgColor;
 	}
 }
@@ -2377,19 +2633,32 @@ void GenesisVdp::DAC::Dot(GenesisVdp& vdp, uint16_t hpos, uint16_t cramColor)
 
 uint32_t GenesisVdp::Color(uint16_t cramColor, uint8_t mode)
 {
-	uint32_t R = cramColor & 7;
-	uint32_t G = (cramColor >> 3) & 7;
-	uint32_t B = (cramColor >> 6) & 7;
+	static const auto palette = [] {
+		//ares DAC levels for shadow, normal, and highlight.
+		constexpr int levels[4][8] = {
+			{ 0, 29, 52, 70, 87, 101, 116, 130 },
+			{ 0, 52, 87, 116, 144, 172, 206, 255 },
+			{ 130, 144, 158, 172, 187, 206, 228, 255 },
+			{},
+		};
+		std::array<std::array<uint32_t, 512>, 4> colors {};
+		for(uint32_t shade = 0; shade < colors.size(); shade++) {
+			for(uint32_t index = 0; index < colors[shade].size(); index++) {
+				int red = levels[shade][index & 7];
+				int green = levels[shade][(index >> 3) & 7];
+				int blue = levels[shade][(index >> 6) & 7];
+				int luma = (299 * red + 587 * green + 114 * blue + 500) / 1000;
+				//Boost chroma by 15% without changing neutral grays.
+				auto boostChroma = [luma](int channel) -> uint32_t {
+					return std::clamp(channel + (channel - luma) * 15 / 100, 0, 255);
+				};
+				colors[shade][index] = 0xFF000000u | (boostChroma(red) << 16) | (boostChroma(green) << 8) | boostChroma(blue);
+			}
+		}
+		return colors;
+	}();
 
-	static const uint32_t lookup[4][8] = {
-		{ 0, 29, 52, 70, 87, 101, 116, 130 },
-		{ 0, 52, 87, 116, 144, 172, 206, 255 },
-		{ 130, 144, 158, 172, 187, 206, 228, 255 },
-		{},
-	};
-
-	mode &= 3;
-	return 0xFF000000 | (lookup[mode][R] << 16) | (lookup[mode][G] << 8) | lookup[mode][B];
+	return palette[mode & 3][cramColor & 0x1FF];
 }
 
 uint32_t GenesisVdp::Hflip(uint32_t data)
@@ -2404,6 +2673,10 @@ uint32_t GenesisVdp::Hflip(uint32_t data)
 
 void GenesisVdp::Serialize(Serializer& s)
 {
+	if(!s.IsSaving() && !_emu->IsRunAheadFrame()) {
+		InvalidateDebugSnapshot();
+	}
+
 	SVArray(_vram, VRAMSize);
 	SVArray(_vsram, VSRAMSize);
 	SVArray(_cram, CRAMSize);
@@ -2470,6 +2743,9 @@ void GenesisVdp::Serialize(Serializer& s)
 		SVI(_fifo.slots[i].upper);
 		SVI(_fifo.slots[i].lower);
 		SVI(_fifo.slots[i].latency);
+		if(!s.IsSaving()) {
+			_fifo.slots[i].DebugOrigin = {};
+		}
 	}
 
 	SV(_prefetch.slot.target);
@@ -2485,6 +2761,11 @@ void GenesisVdp::Serialize(Serializer& s)
 	SV(_dma.length);
 	SV(_dma.data);
 	SV(_dma.wait);
+	if(!s.IsSaving()) {
+		//Older states do not record which FIFO entries preceded a fill.
+		_dma.fifoEntriesBeforeFill = 0;
+	}
+	SV(_dma.fifoEntriesBeforeFill);
 	SV(_dma.read);
 	SV(_dma.enable);
 	SV(_dma.preload);

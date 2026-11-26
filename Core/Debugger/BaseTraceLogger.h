@@ -7,7 +7,6 @@
 #include "Debugger/IDebugger.h"
 #include "Debugger/DebugTypes.h"
 #include "Debugger/LabelManager.h"
-#include "Debugger/DebugTypes.h"
 #include "Debugger/DebugUtilities.h"
 #include "Debugger/DebugBreakHelper.h"
 #include "Debugger/ITraceLogger.h"

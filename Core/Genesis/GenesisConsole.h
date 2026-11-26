@@ -46,22 +46,13 @@ private:
 	bool _banked = false; //true if cartridge uses banked mapping
 	uint8_t _romBank[8] = {}; //bank registers for banked cartridges
 
-	//EEPROM (M24C) save storage. Mutually exclusive with SRAM — a
-	//cartridge has either parallel SRAM or an I2C EEPROM, never both.
-	//When _useEeprom is true, the SRAM address range (_sramStart ..
-	// _sramStart+_sramSize) is used for SDA/SCL bit-banging instead of
-	//parallel SRAM access. Ported from ares/md/cartridge/board/standard.cpp
-	//and ares/component/eeprom/m24c/. Detection: NOT driven by the ROM
-	//header type byte (bit 7 proved unreliable — Light Crusader has
-	//bit 7=0 but uses parallel SRAM). EEPROM is currently disabled by
-	//default; enable only via an explicit game-database lookup for
-	//known EEPROM titles (NBA Jam TE, WWF WrestleMania, etc.).
-	bool _useEeprom = false;
+	//Recognized EEPROM boards use the cartridge save window for SDA and SCL.
+	GenesisEeprom::Type _eepromType = GenesisEeprom::Type::None;
 	GenesisEeprom _eeprom;
 	//SDA/SCL bit positions within the 16-bit M68K word at _sramStart.
 	//rsda: bit position of SDA on reads. wsda/wscl: bit positions of
 	//SDA/SCL on writes. The upper nibble (>>3) selects the byte (0=low,
-	//1=high). Defaults (Acclaim mapper): rsda=0, wsda=0, wscl=1.
+	//1=high).
 	uint8_t _eepromRsda = 0;
 	uint8_t _eepromWsda = 0;
 	uint8_t _eepromWscl = 1;
@@ -76,10 +67,14 @@ private:
 
 	uint32_t _frameCount = 0;
 	uint64_t _masterClock = 0;
+	uint64_t _m68kClock = 0;
+	uint64_t _z80Clock = 0;
 
 	void UpdateRegion();
 	void ParseRomHeader(vector<uint8_t>& romData);
 	void InitCart(vector<uint8_t>& romData);
+	void RunScanlineCpus(uint64_t scanlineStart);
+	void RunZ80Instruction();
 
 public:
 	static vector<string> GetSupportedExtensions() { return { ".md", ".gen", ".smd" }; }
@@ -108,6 +103,8 @@ public:
 
 	uint64_t GetMasterClock() override;
 	uint32_t GetMasterClockRate() override;
+	uint64_t GetCpuMasterClock(CpuType cpuType) const;
+	void RunZ80Until(uint64_t masterClock);
 
 	AudioTrackInfo GetAudioTrackInfo() override { return {}; }
 	void ProcessAudioPlayerAction(AudioPlayerActionParams p) override {}

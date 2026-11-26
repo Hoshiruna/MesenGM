@@ -42,21 +42,19 @@ public:
 		uint32_t sramStart, bool sramWritable, bool sramOddByte,
 		bool useSsfMapper, uint8_t* romBank,
 		bool useEeprom, GenesisEeprom* eeprom,
-		uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl);
+		uint8_t eepromRsda, uint8_t eepromWsda, uint8_t eepromWscl, bool eepromIgnoresWriteStrobes);
 
 	void Reset();
 
 	//--- M68K bus interface (word-granularity, set on GenesisM68K) ---
 	uint16_t M68KRead(uint8_t upper, uint8_t lower, uint32_t address);
-	void M68KWrite(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data);
+	void M68KWrite(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data, CpuType cpuType);
 
 	//--- Z80 bus interface (byte-granularity, set on GenesisZ80) ---
 	uint8_t Z80Read(uint16_t address);
 	void Z80Write(uint16_t address, uint8_t data);
 
 	//--- Z80 bus arbitration ---
-	void SetBusreq(bool line); //from M68K -> Z80 bus request
-	void SetReset(bool line); //from M68K -> Z80 reset
 	bool IsBusGranted() const; //true when Z80 owns the bus
 
 	//--- VDP DMA read (M68K bus, used during 68K->VDP DMA) ---
@@ -151,6 +149,7 @@ private:
 	uint8_t _eepromRsda = 0; //bit position of SDA on reads
 	uint8_t _eepromWsda = 0; //bit position of SDA on writes
 	uint8_t _eepromWscl = 1; //bit position of SCL on writes
+	bool _eepromIgnoresWriteStrobes = false;
 	uint8_t* _originalEeprom = nullptr; //snapshot for change detection
 
 	//Z80 bank register (determines which 32KB window of the M68K bus
@@ -180,7 +179,9 @@ private:
 	uint16_t ReadEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
 	void WriteEepromWord(uint16_t data, uint8_t upper, uint8_t lower);
 	uint16_t ReadM68KIO(uint32_t address, uint16_t openBus);
-	void WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data);
+	void WriteM68KIO(uint32_t address, uint8_t upper, uint8_t lower, uint16_t data, CpuType cpuType);
+	void SetBusreq(bool line, CpuType cpuType);
+	void SetReset(bool line, CpuType cpuType);
 	//Apply SSF2 bank translation to a byte M68K ROM address.
 	//Returns the corresponding byte offset into the _rom array.
 	//When _useSsfMapper is false, returns the address unchanged.
