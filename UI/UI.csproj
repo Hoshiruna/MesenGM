@@ -103,7 +103,7 @@
 		<AvaloniaNameGeneratorIsEnabled>False</AvaloniaNameGeneratorIsEnabled>
 	</PropertyGroup>
 	<ItemGroup>
-		<TrimmerRootAssembly Include="Mesen" />
+		<TrimmerRootAssembly Include="$(AssemblyName)" />
 		<TrimmerRootAssembly Include="AvaloniaEdit" />
 		<TrimmerRootAssembly Include="Dock.Avalonia" />
 		<TrimmerRootAssembly Include="Dock.Model" />
