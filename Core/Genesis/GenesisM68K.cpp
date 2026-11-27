@@ -119,20 +119,17 @@ void GenesisM68K::Exception(uint32_t exception, uint32_t vector, uint32_t priori
 
 void GenesisM68K::Interrupt(uint32_t vector, uint32_t priority)
 {
-	uint32_t oldPc = _r.pc - 4;
+	uint32_t oldPc = GetInstructionPC();
+	_interruptReturnSp = _r.a[7];
 	Exception(ExInterrupt, vector, priority);
 	if(_emu) {
-		_emu->ProcessInterrupt<CpuType::GenesisM68K>(oldPc, _r.pc, false);
+		_emu->ProcessInterrupt<CpuType::GenesisM68K>(oldPc, GetInstructionPC(), false);
 	}
 }
 
 uint32_t GenesisM68K::ExecuteInstruction()
 {
 	_cycleAccum = 0;
-
-	if(_emu) {
-		_emu->ProcessInstruction<CpuType::GenesisM68K>();
-	}
 
 	//In ares, CPU::main() checks for pending interrupts before every instruction.
 	//We replicate this by calling CheckInterrupts() here. This is critical for
@@ -144,6 +141,9 @@ uint32_t GenesisM68K::ExecuteInstruction()
 	}
 
 	if(!_r.stop) {
+		if(_emu) {
+			_emu->ProcessInstruction<CpuType::GenesisM68K>();
+		}
 		_r.ird = _r.ir;
 		_instructionTable[_r.ird]();
 	} else {
@@ -253,23 +253,67 @@ void GenesisM68K::WriteSR(uint16_t sr)
 // memory.cpp
 // ============================================================================
 
+void GenesisM68K::SetInstructionPC(uint32_t pc, uint16_t opcode, uint16_t nextWord)
+{
+	_r.pc = pc + 4;
+	_r.ir = opcode;
+	_r.irc = nextWord;
+}
+
+uint16_t GenesisM68K::ReadBus(uint8_t upper, uint8_t lower, uint32_t address)
+{
+	uint16_t data = BusRead(upper, lower, address);
+	if(_emu) {
+		address &= 0xFFFFFF;
+		uint8_t high = data >> 8;
+		uint8_t low = data;
+		if(upper) {
+			_emu->ProcessMemoryRead<CpuType::GenesisM68K>(address, high, MemoryOperationType::Read);
+		}
+		if(lower) {
+			_emu->ProcessMemoryRead<CpuType::GenesisM68K>(address + 1, low, MemoryOperationType::Read);
+		}
+		data = (high << 8) | low;
+	}
+	return data;
+}
+
+void GenesisM68K::WriteBus(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data)
+{
+	if(_emu) {
+		address &= 0xFFFFFF;
+		uint8_t high = data >> 8;
+		uint8_t low = data;
+		if(upper) {
+			upper = _emu->ProcessMemoryWrite<CpuType::GenesisM68K>(address, high, MemoryOperationType::Write);
+		}
+		if(lower) {
+			lower = _emu->ProcessMemoryWrite<CpuType::GenesisM68K>(address + 1, low, MemoryOperationType::Write);
+		}
+		data = (high << 8) | low;
+	}
+	if(upper || lower) {
+		BusWrite(upper, lower, address, data);
+	}
+}
+
 template<uint32_t Size> uint32_t GenesisM68K::Read(uint32_t address)
 {
 	if constexpr(Size == Byte) {
 		BusWait(4);
 		if(address & 1) {
-			return BusRead(0, 1, address & ~1) & 0xFF; // /LDS
+			return ReadBus(0, 1, address & ~1) & 0xFF; // /LDS
 		} else {
-			return (BusRead(1, 0, address & ~1) >> 8) & 0xFF; // /UDS
+			return (ReadBus(1, 0, address & ~1) >> 8) & 0xFF; // /UDS
 		}
 	} else if constexpr(Size == Word) {
 		BusWait(4);
-		return BusRead(1, 1, address & ~1);
+		return ReadBus(1, 1, address & ~1);
 	} else if constexpr(Size == Long) {
 		BusWait(4);
-		uint32_t data = BusRead(1, 1, (address + 0) & ~1) << 16;
+		uint32_t data = ReadBus(1, 1, (address + 0) & ~1) << 16;
 		BusWait(4);
-		return data | BusRead(1, 1, (address + 2) & ~1) << 0;
+		return data | ReadBus(1, 1, (address + 2) & ~1) << 0;
 	}
 	GENESIS_UNREACHABLE();
 }
@@ -279,24 +323,24 @@ template<uint32_t Size, bool Order> void GenesisM68K::Write(uint32_t address, ui
 	if constexpr(Size == Byte) {
 		BusWait(4);
 		if(address & 1) {
-			BusWrite(0, 1, address & ~1, (data << 8) | ((uint8_t)data << 0)); // /LDS
+			WriteBus(0, 1, address & ~1, (data << 8) | ((uint8_t)data << 0)); // /LDS
 		} else {
-			BusWrite(1, 0, address & ~1, (data << 8) | ((uint8_t)data << 0)); // /UDS
+			WriteBus(1, 0, address & ~1, (data << 8) | ((uint8_t)data << 0)); // /UDS
 		}
 	} else if constexpr(Size == Word) {
 		BusWait(4);
-		BusWrite(1, 1, address & ~1, data);
+		WriteBus(1, 1, address & ~1, data);
 	} else if constexpr(Size == Long) {
 		if constexpr(Order) {
 			BusWait(4);
-			BusWrite(1, 1, (address + 2) & ~1, data >> 0);
+			WriteBus(1, 1, (address + 2) & ~1, data >> 0);
 			BusWait(4);
-			BusWrite(1, 1, (address + 0) & ~1, data >> 16);
+			WriteBus(1, 1, (address + 0) & ~1, data >> 16);
 		} else {
 			BusWait(4);
-			BusWrite(1, 1, (address + 0) & ~1, data >> 16);
+			WriteBus(1, 1, (address + 0) & ~1, data >> 16);
 			BusWait(4);
-			BusWrite(1, 1, (address + 2) & ~1, data >> 0);
+			WriteBus(1, 1, (address + 2) & ~1, data >> 0);
 		}
 	}
 }
@@ -304,16 +348,20 @@ template<uint32_t Size, bool Order> void GenesisM68K::Write(uint32_t address, ui
 template<uint32_t Size> uint32_t GenesisM68K::Extension()
 {
 	if constexpr(Size == Byte) {
-		BusWait(4);
-		_r.ir = _r.irc;
-		_r.irc = BusRead(1, 1, _r.pc & ~1);
-		_r.pc += 2;
-		return (uint8_t)_r.ir;
+		return (uint8_t)Extension<Word>();
 	} else if constexpr(Size == Word) {
 		BusWait(4);
 		_r.ir = _r.irc;
 		_r.irc = BusRead(1, 1, _r.pc & ~1);
 		_r.pc += 2;
+		if(_emu) {
+			uint32_t address = (_r.pc - 4) & 0xFFFFFF;
+			uint8_t high = _r.ir >> 8;
+			uint8_t low = _r.ir;
+			_emu->ProcessMemoryRead<CpuType::GenesisM68K>(address, high, MemoryOperationType::ExecOperand);
+			_emu->ProcessMemoryRead<CpuType::GenesisM68K>(address + 1, low, MemoryOperationType::ExecOperand);
+			return (high << 8) | low;
+		}
 		return _r.ir;
 	} else if constexpr(Size == Long) {
 		auto hi = Extension<Word>();

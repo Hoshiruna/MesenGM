@@ -989,9 +989,8 @@ namespace Mesen.ViewModels
 			Func<bool> isSuperGameBoy = () => MainWindow.RomInfo.ConsoleType == ConsoleType.Snes && MainWindow.RomInfo.Format == RomFormat.Gb;
 			Func<bool> isNesFormat = () => MainWindow.RomInfo.ConsoleType == ConsoleType.Nes && (MainWindow.RomInfo.Format == RomFormat.iNes || MainWindow.RomInfo.Format == RomFormat.VsSystem || MainWindow.RomInfo.Format == RomFormat.VsDualSystem);
 
-			Func<bool> canDebugGame = () => IsGameRunning && MainWindow.RomInfo.ConsoleType.SupportsDebugger();
+			Func<bool> canDebugGame = () => IsGameRunning;
 			Func<bool> canViewGenesis = () => IsGameRunning && RomInfo.ConsoleType == ConsoleType.Genesis;
-			Func<bool> canViewGraphics = () => canDebugGame() || canViewGenesis();
 
 			DebugMenuItems = new List<object>() {
 				new ContextMenuAction() {
@@ -999,6 +998,12 @@ namespace Mesen.ViewModels
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenDebugger),
 					IsEnabled = canDebugGame,
 					OnClick = () => DebuggerWindow.GetOrOpenWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType())
+				},
+				new ContextMenuAction() {
+					ActionType = ActionType.Custom,
+					CustomText = ResourceHelper.GetMessage("OpenGenesisZ80Debugger"),
+					IsVisible = () => MainWindow.RomInfo.CpuTypes.Contains(CpuType.GenesisZ80),
+					OnClick = () => DebuggerWindow.GetOrOpenWindow(CpuType.GenesisZ80)
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenSpcDebugger,
@@ -1045,6 +1050,7 @@ namespace Mesen.ViewModels
 				new ContextMenuSeparator(),
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenEventViewer,
+					IsVisible = () => RomInfo.ConsoleType != ConsoleType.Genesis,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenEventViewer),
 					IsEnabled = canDebugGame,
 					OnClick = () => EventViewerWindow.GetOrOpenWindow(MainWindow.RomInfo.ConsoleType.GetMainCpuType())
@@ -1057,6 +1063,7 @@ namespace Mesen.ViewModels
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenRegisterViewer,
+					IsVisible = () => RomInfo.ConsoleType != ConsoleType.Genesis,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenRegisterViewer),
 					IsEnabled = canDebugGame,
 					OnClick = () => DebugWindowManager.OpenDebugWindow(() => new RegisterViewerWindow(new RegisterViewerWindowViewModel()))
@@ -1074,7 +1081,7 @@ namespace Mesen.ViewModels
 					DynamicText = () => RomInfo.ConsoleType == ConsoleType.Genesis
 						? ResourceHelper.GetViewLabel(nameof(TilemapViewerWindow), "wndGenesisTitle")
 						: ResourceHelper.GetEnumText(ActionType.OpenTilemapViewer),
-					IsEnabled = canViewGraphics,
+					IsEnabled = canDebugGame,
 					OnClick = () => {
 						if(canViewGenesis()) {
 							GenesisViewer.Open(wnd, () => new TilemapViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);
@@ -1086,7 +1093,7 @@ namespace Mesen.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenTileViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenTileViewer),
-					IsEnabled = canViewGraphics,
+					IsEnabled = canDebugGame,
 					OnClick = () => {
 						if(canViewGenesis()) {
 							GenesisViewer.Open(wnd, () => new TileViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);
@@ -1105,7 +1112,7 @@ namespace Mesen.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenPaletteViewer,
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenPaletteViewer),
-					IsEnabled = canViewGraphics,
+					IsEnabled = canDebugGame,
 					OnClick = () => {
 						if(canViewGenesis()) {
 							GenesisViewer.Open(wnd, () => new PaletteViewerWindow(CpuType.GenesisM68K), x => x.IsGenesisViewer);

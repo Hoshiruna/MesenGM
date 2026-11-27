@@ -18,6 +18,7 @@ namespace Mesen.Debugger.Utilities
 		private static ConcurrentDictionary<Window, bool> _openedWindows = new();
 		private static ReaderWriterLockSlim _windowNotifLock = new();
 		private static bool _loadingGame = false;
+		private static bool _isGenesis = false;
 
 		public static T CreateDebugWindow<T>(Func<T> createWindow) where T : MesenWindow
 		{
@@ -140,14 +141,7 @@ namespace Mesen.Debugger.Utilities
 
 				case ConsoleNotificationType.GameLoaded:
 				case ConsoleNotificationType.GameLoadFailed:
-					if(e.NotificationType == ConsoleNotificationType.GameLoaded && !EmuApi.GetRomInfo().ConsoleType.SupportsDebugger()) {
-						_loadingGame = true;
-						Dispatcher.UIThread.Post(() => {
-							CloseAllWindows();
-							_loadingGame = false;
-						});
-						return;
-					}
+					_isGenesis = EmuApi.GetRomInfo().ConsoleType == ConsoleType.Genesis;
 					//Load operation is done, allow notifications to be sent to windows
 					_loadingGame = false;
 					break;
@@ -165,6 +159,12 @@ namespace Mesen.Debugger.Utilities
 				if(_windowNotifLock.TryEnterReadLock(100)) {
 					try {
 						foreach(Window window in _openedWindows.Keys) {
+							if(_isGenesis && window is (EventViewerWindow or RegisterViewerWindow or SpriteViewerWindow or TilemapViewerWindow or TileViewerWindow or PaletteViewerWindow)) {
+								if(e.NotificationType == ConsoleNotificationType.GameLoaded) {
+									Dispatcher.UIThread.Post(window.Close);
+								}
+								continue;
+							}
 							if(window is INotificationHandler handler) {
 								handler.ProcessNotification(e);
 							}

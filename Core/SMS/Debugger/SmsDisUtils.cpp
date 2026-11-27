@@ -137,7 +137,8 @@ void SmsDisUtils::GetDisassembly(DisassemblyInfo& info, string& out, uint32_t me
 {
 	FastString str(settings->GetDebugConfig().UseLowerCaseDisassembly);
 
-	AddressInfo addrInfo { 0, MemoryType::SmsMemory };
+	MemoryType cpuMemory = info.GetCpuType() == CpuType::GenesisZ80 ? MemoryType::GenesisZ80Memory : MemoryType::SmsMemory;
+	AddressInfo addrInfo { 0, cpuMemory };
 	auto getOperand = [&str, &addrInfo, labelManager](uint16_t addr) {
 		addrInfo.Address = addr;
 		string label = labelManager ? labelManager->GetLabel(addrInfo) : "";
@@ -157,7 +158,11 @@ void SmsDisUtils::GetDisassembly(DisassemblyInfo& info, string& out, uint32_t me
 	while(opInfo.Op[i]) {
 		switch(opInfo.Op[i]) {
 			//Relative jumps
-			case 'r': getOperand((uint16_t)(memoryAddr + (int8_t)opInfo.ByteCode[1] + _opSize[opInfo.ByteCode[0]])); break;
+			case 'r': {
+				uint8_t size = cpuMemory == MemoryType::GenesisZ80Memory ? info.GetOpSize() : _opSize[opInfo.ByteCode[0]];
+				getOperand((uint16_t)(memoryAddr + (int8_t)opInfo.ByteCode[1] + size));
+				break;
+			}
 
 			//Jump addresses, memory addresses
 			case 'a': getOperand((uint16_t)(opInfo.ByteCode[1] | (opInfo.ByteCode[2] << 8))); break;
@@ -168,7 +173,7 @@ void SmsDisUtils::GetDisassembly(DisassemblyInfo& info, string& out, uint32_t me
 
 			case 'p': {
 				AddressInfo portAddr = { opInfo.ByteCode[1], MemoryType::SmsPort };
-				string label = labelManager ? labelManager->GetLabel(portAddr) : "";
+				string label = labelManager && cpuMemory == MemoryType::SmsMemory ? labelManager->GetLabel(portAddr) : "";
 				if(label.empty()) {
 					str.WriteAll('$', HexUtilities::ToHex((uint8_t)portAddr.Address));
 				} else {
@@ -337,6 +342,13 @@ EffectiveAddressInfo SmsDisUtils::GetEffectiveAddress(DisassemblyInfo& info, Sms
 
 uint8_t SmsDisUtils::GetOpSize(uint8_t opCode, uint32_t cpuAddress, MemoryType memType, MemoryDumper* memoryDumper)
 {
+	auto read = [&](uint32_t offset) {
+		uint32_t address = cpuAddress + offset;
+		if(memType == MemoryType::GenesisZ80Memory) {
+			address &= 0xFFFF;
+		}
+		return memoryDumper->GetMemoryValue(memType, address);
+	};
 	uint8_t prefixSize = 0;
 	HlRegType hlRegType = HlRegType::HL;
 	while(true) {
@@ -352,11 +364,11 @@ uint8_t SmsDisUtils::GetOpSize(uint8_t opCode, uint32_t cpuAddress, MemoryType m
 				if(prefixSize > 6) {
 					return 6;
 				}
-				opCode = memoryDumper->GetMemoryValue(memType, cpuAddress + prefixSize);
+				opCode = read(prefixSize);
 				break;
 
 			case 0xED:
-				opCode = memoryDumper->GetMemoryValue(memType, cpuAddress + prefixSize + 1);
+				opCode = read(prefixSize + 1);
 				return prefixSize + _opSizeEd[opCode];
 		}
 	}

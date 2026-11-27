@@ -23,6 +23,8 @@ public:
 			case CpuType::Sms: return MemoryType::SmsMemory;
 			case CpuType::Gba: return MemoryType::GbaMemory;
 			case CpuType::Ws: return MemoryType::WsMemory;
+			case CpuType::GenesisM68K: return MemoryType::GenesisM68KMemory;
+			case CpuType::GenesisZ80: return MemoryType::GenesisZ80Memory;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -44,6 +46,8 @@ public:
 			case CpuType::Sms: return 4;
 			case CpuType::Gba: return 8;
 			case CpuType::Ws: return 5;
+			case CpuType::GenesisM68K: return 6;
+			case CpuType::GenesisZ80: return 4;
 		}
 
 		throw std::runtime_error("Invalid CPU type");
@@ -181,12 +185,14 @@ public:
 			case MemoryType::WsPort:
 				return CpuType::Ws;
 
+			case MemoryType::GenesisM68KMemory:
 			case MemoryType::GenesisM68KRam:
 			case MemoryType::GenesisVdpVram:
 			case MemoryType::GenesisCartridgeRom:
 			case MemoryType::GenesisCartridgeRam:
 				return CpuType::GenesisM68K;
 
+			case MemoryType::GenesisZ80Memory:
 			case MemoryType::GenesisZ80Ram:
 				return CpuType::GenesisZ80;
 
@@ -197,7 +203,7 @@ public:
 
 	static constexpr bool IsRelativeMemory(MemoryType memType)
 	{
-		return memType <= GetLastCpuMemoryType();
+		return memType <= GetLastCpuMemoryType() || memType == MemoryType::GenesisM68KMemory || memType == MemoryType::GenesisZ80Memory;
 	}
 
 	static constexpr MemoryType GetLastCpuMemoryType()
@@ -260,6 +266,7 @@ public:
 			case MemoryType::SmsPrgRom:
 			case MemoryType::GbaPrgRom:
 			case MemoryType::WsPrgRom:
+			case MemoryType::GenesisCartridgeRom:
 				return true;
 
 			default:
@@ -333,6 +340,6 @@ public:
 
 	static constexpr int GetMemoryTypeCount()
 	{
-		return (int)MemoryType::GenesisCartridgeRam + 1;
+		return (int)MemoryType::GenesisZ80Memory + 1;
 	}
 };

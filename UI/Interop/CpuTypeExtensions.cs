@@ -20,6 +20,8 @@ namespace Mesen.Interop
 				CpuType.Sms => MemoryType.SmsMemory,
 				CpuType.Gba => MemoryType.GbaMemory,
 				CpuType.Ws => MemoryType.WsMemory,
+				CpuType.GenesisM68K => MemoryType.GenesisM68KMemory,
+				CpuType.GenesisZ80 => MemoryType.GenesisZ80Memory,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -34,6 +36,7 @@ namespace Mesen.Interop
 				CpuType.Sms => MemoryType.SmsVideoRam,
 				CpuType.Gba => MemoryType.GbaVideoRam,
 				CpuType.Ws => MemoryType.WsWorkRam,
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => MemoryType.GenesisVdpVram,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -48,6 +51,7 @@ namespace Mesen.Interop
 				CpuType.Sms => MemoryType.None,
 				CpuType.Gba => MemoryType.GbaSpriteRam,
 				CpuType.Ws => MemoryType.None,
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => MemoryType.None,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -68,6 +72,7 @@ namespace Mesen.Interop
 				CpuType.Sms => MemoryType.SmsPrgRom,
 				CpuType.Gba => MemoryType.GbaPrgRom,
 				CpuType.Ws => MemoryType.WsPrgRom,
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => MemoryType.GenesisCartridgeRom,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -88,6 +93,8 @@ namespace Mesen.Interop
 				CpuType.Sms => MemoryType.SmsWorkRam,
 				CpuType.Gba => MemoryType.GbaIntWorkRam,
 				CpuType.Ws => MemoryType.WsWorkRam,
+				CpuType.GenesisM68K => MemoryType.GenesisM68KRam,
+				CpuType.GenesisZ80 => MemoryType.GenesisZ80Ram,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -108,6 +115,8 @@ namespace Mesen.Interop
 				CpuType.Sms => 4,
 				CpuType.Gba => 7,
 				CpuType.Ws => 5,
+				CpuType.GenesisM68K => 6,
+				CpuType.GenesisZ80 => 4,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -128,6 +137,8 @@ namespace Mesen.Interop
 				CpuType.Sms => 4,
 				CpuType.Gba => 4,
 				CpuType.Ws => 4,
+				CpuType.GenesisM68K => 10,
+				CpuType.GenesisZ80 => 4,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -170,6 +181,8 @@ namespace Mesen.Interop
 				CpuType.Sms => DebuggerFlags.SmsDebuggerEnabled,
 				CpuType.Gba => DebuggerFlags.GbaDebuggerEnabled,
 				CpuType.Ws => DebuggerFlags.WsDebuggerEnabled,
+				CpuType.GenesisM68K => DebuggerFlags.GenesisM68KDebuggerEnabled,
+				CpuType.GenesisZ80 => DebuggerFlags.GenesisZ80DebuggerEnabled,
 				_ => throw new Exception("Invalid CPU type"),
 			};
 		}
@@ -286,6 +299,12 @@ namespace Mesen.Interop
 
 				case MemoryType.GsuWorkRam:
 					return cpuType == CpuType.Snes || cpuType == CpuType.Gsu;
+
+				case MemoryType.GenesisCartridgeRom:
+				case MemoryType.GenesisCartridgeRam:
+				case MemoryType.GenesisZ80Ram:
+				case MemoryType.GenesisM68KRam:
+					return cpuType is CpuType.GenesisM68K or CpuType.GenesisZ80;
 
 				default:
 					//All other types are specific to a single CPU type

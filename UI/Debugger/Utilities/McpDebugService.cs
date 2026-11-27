@@ -357,9 +357,6 @@ namespace Mesen.Debugger.Utilities
 
 			try {
 				RomInfo romInfo = EnsureRomLoaded();
-				if(!romInfo.ConsoleType.SupportsDebugger() && toolName is not ("debugger_status" or "get_rom_info" or "get_screen" or "get_genesis_vdp_state")) {
-					return ToolError(id, "This tool is unavailable on Mega Drive. Use get_genesis_vdp_state to inspect the VDP.");
-				}
 				return toolName switch {
 					"debugger_status" => ToolSuccess(id, GetDebuggerStatus()),
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),
@@ -471,6 +468,40 @@ namespace Mesen.Debugger.Utilities
 						["L"] = state.L,
 						["halt_counter"] = state.HaltCounter,
 						["cycle_count"] = state.CycleCount
+					};
+				}
+				case CpuType.GenesisM68K: {
+					var state = DebugApi.GetCpuState<GenesisM68KState>(cpuType);
+					return new JsonObject {
+						["cpu_type"] = (int)cpuType,
+						["cpu_type_name"] = cpuType.ToString(),
+						["PC"] = state.PC,
+						["SR"] = state.SR,
+						["SP"] = state.A[7],
+						["SSP"] = state.SSP,
+						["D"] = new JsonArray(state.D.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
+						["A"] = new JsonArray(state.A.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
+						["cycle_count"] = state.CycleCount,
+						["stopped"] = state.Stopped
+					};
+				}
+				case CpuType.GenesisZ80: {
+					var state = DebugApi.GetCpuState<GenesisZ80State>(cpuType);
+					return new JsonObject {
+						["cpu_type"] = (int)cpuType,
+						["cpu_type_name"] = cpuType.ToString(),
+						["PC"] = state.PC,
+						["SP"] = state.SP,
+						["AF"] = state.AF,
+						["BC"] = state.BC,
+						["DE"] = state.DE,
+						["HL"] = state.HL,
+						["IX"] = state.IX,
+						["IY"] = state.IY,
+						["I"] = state.I,
+						["R"] = state.R,
+						["cycle_count"] = state.CycleCount,
+						["halted"] = state.Halted
 					};
 				}
 				case CpuType.Nes: {

@@ -63,7 +63,7 @@ namespace Mesen.Interop
 			for(int i = 0; i < rowCount; i++) {
 				rows[i].Comment = new byte[1000];
 				rows[i].Text = new byte[1000];
-				rows[i].ByteCode = new byte[8];
+				rows[i].ByteCode = new byte[10];
 			}
 
 			UInt32 resultCount = DebugApi.GetDisassemblyOutput(type, address, rows, rowCount);
@@ -86,7 +86,7 @@ namespace Mesen.Interop
 			for(int i = 0; i < maxResultCount; i++) {
 				rows[i].Comment = new byte[1000];
 				rows[i].Text = new byte[1000];
-				rows[i].ByteCode = new byte[8];
+				rows[i].ByteCode = new byte[10];
 			}
 
 			UInt32 resultCount = DebugApi.FindOccurrences(type, searchString, options, rows, maxResultCount);
@@ -695,6 +695,8 @@ namespace Mesen.Interop
 		GenesisVdpVram,
 		GenesisCartridgeRom,
 		GenesisCartridgeRam,
+		GenesisM68KMemory,
+		GenesisZ80Memory,
 	}
 
 	[StructLayout(LayoutKind.Sequential)]
@@ -1700,7 +1702,7 @@ namespace Mesen.Interop
 		public UInt32 ProgramCounter;
 		public CpuType Type;
 
-		public fixed byte ByteCode[8];
+		public fixed byte ByteCode[10];
 		public byte ByteCodeSize;
 
 		public UInt32 LogSize;
@@ -1729,7 +1731,7 @@ namespace Mesen.Interop
 			fixed(byte* output = ByteCode) {
 				StringBuilder sb = new StringBuilder();
 				int i;
-				for(i = 0; i < ByteCodeSize && i < 8; i++) {
+				for(i = 0; i < ByteCodeSize && i < 10; i++) {
 					sb.Append(ByteCode[i].ToString("X2") + " ");
 				}
 				return sb.ToString().Trim();

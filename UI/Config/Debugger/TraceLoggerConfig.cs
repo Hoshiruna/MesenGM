@@ -34,6 +34,8 @@ namespace Mesen.Config
 		[ObservableProperty] public partial TraceLoggerCpuConfig SmsConfig { get; set; } = new();
 		[ObservableProperty] public partial TraceLoggerCpuConfig GbaConfig { get; set; } = new();
 		[ObservableProperty] public partial TraceLoggerCpuConfig WsConfig { get; set; } = new();
+		[ObservableProperty] public partial TraceLoggerCpuConfig GenesisM68KConfig { get; set; } = new();
+		[ObservableProperty] public partial TraceLoggerCpuConfig GenesisZ80Config { get; set; } = new();
 
 		public TraceLoggerConfig()
 		{
@@ -55,6 +57,8 @@ namespace Mesen.Config
 				CpuType.Sms => SmsConfig,
 				CpuType.Gba => GbaConfig,
 				CpuType.Ws => WsConfig,
+				CpuType.GenesisM68K => GenesisM68KConfig,
+				CpuType.GenesisZ80 => GenesisZ80Config,
 				_ => throw new NotImplementedException("Unsupport cpu type")
 			};
 		}

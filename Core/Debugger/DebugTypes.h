@@ -150,7 +150,7 @@ struct CodeLineData
 	uint32_t Value;
 	CpuType LineCpuType;
 
-	uint8_t ByteCode[8];
+	uint8_t ByteCode[10];
 	char Text[1000];
 	char Comment[1000];
 };

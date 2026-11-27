@@ -954,60 +954,42 @@ void GenesisMemoryManager::SaveBattery()
 // Address translation
 // ============================================================================
 
-AddressInfo GenesisMemoryManager::GetAbsoluteAddress(uint32_t addr, CpuType cpuType)
+AddressInfo GenesisMemoryManager::GetAbsoluteAddress(uint32_t addr, CpuType cpuType, bool forWrite)
 {
-	if(cpuType == CpuType::GenesisM68K) {
-		addr &= 0x00FFFFFF;
-		//EEPROM: the M68K address doesn't map to a specific EEPROM byte
-		//(access is via I2C bit-banging, not direct memory). Return None
-		//so the debugger doesn't try to interpret the bit-bang address
-		//as a cartridge RAM offset. The EEPROM data is still accessible
-		//via the memory viewer through the GenesisCartridgeRam registration.
-		if(_useEeprom && addr >= _sramStart && addr < _sramStart + _sramSize) {
+	if(cpuType == CpuType::GenesisZ80) {
+		addr &= 0xFFFF;
+		if(addr < 0x4000) {
+			return { (int32_t)(addr & 0x1FFF), MemoryType::GenesisZ80Ram };
+		}
+		if(addr < 0x8000) {
 			return { -1, MemoryType::None };
 		}
-		//SRAM (checked first so a banked cart's SRAM window maps to
-		//GenesisCartridgeRam, not the ROM underneath). For odd-byte SRAM
-		//the byte index is (addr - _sramStart) >> 1 because each word
-		//holds one SRAM byte.
-		if(addr >= _sramStart && addr < GetSramEnd() && _sram) {
+		addr = (_z80Bank << 15) | (addr & 0x7FFF);
+		if((addr >= 0xA00000 && addr < 0xA10000) || (!forWrite && addr >= 0xE00000)) {
+			return { -1, MemoryType::None };
+		}
+	}
+
+	addr &= 0xFFFFFF;
+	if(addr < 0x400000) {
+		if((!_romEnable && _tmssEnable) || (_useEeprom && addr >= _sramStart && addr < GetSramEnd())) {
+			return { -1, MemoryType::None };
+		}
+		if(_sram && _sramEnable && addr >= _sramStart && addr < GetSramEnd()) {
 			uint32_t offset = addr - _sramStart;
-			uint32_t idx = _sramOddByte ? (offset >> 1) : offset;
-			return { (int32_t)idx, MemoryType::GenesisCartridgeRam };
-		}
-		//ROM — when SSF2 bank switching is active, the M68K address must
-		//be translated through the bank registers to find the underlying
-		//byte offset in the ROM image. This is what the debugger/cheats
-		//need to display or patch the byte the CPU actually reads.
-		if(addr < 0x400000 && _rom) {
-			uint32_t offset = TranslateRomAddress(addr);
-			if(offset < _romSize) {
-				return { (int32_t)offset, MemoryType::GenesisCartridgeRom };
+			if(forWrite && (!_sramWritable || (_sramOddByte && !(addr & 1)))) {
+				return { -1, MemoryType::None };
 			}
-			return { -1, MemoryType::None };
+			return { (int32_t)(_sramOddByte ? offset >> 1 : offset), MemoryType::GenesisCartridgeRam };
 		}
-		//M68K RAM
-		if(addr >= 0xE00000 && _m68kRam) {
-			return { (int32_t)(addr & 0xFFFF), MemoryType::GenesisM68KRam };
+		uint32_t offset = TranslateRomAddress(addr);
+		if(offset < _romSize) {
+			return { (int32_t)offset, MemoryType::GenesisCartridgeRom };
 		}
-		//Z80 RAM (mapped at 0xA00000)
-		if(addr >= 0xA00000 && addr <= 0xA01FFF && _z80Ram) {
-			return { (int32_t)(addr & 0x1FFF), MemoryType::GenesisZ80Ram };
-		}
-		//VDP registers
-		if(addr >= 0xC00000 && addr <= 0xC0001F) {
-			return { (int32_t)(addr & 0x1F), MemoryType::GenesisVdpVram };
-		}
-	} else if(cpuType == CpuType::GenesisZ80) {
-		//Z80 RAM
-		if(addr <= 0x3FFF && _z80Ram) {
-			return { (int32_t)(addr & 0x1FFF), MemoryType::GenesisZ80Ram };
-		}
-		//M68K bus window
-		if(addr >= 0x8000) {
-			uint32_t m68kAddr = (_z80Bank << 15) | (addr & 0x7FFF);
-			return GetAbsoluteAddress(m68kAddr, CpuType::GenesisM68K);
-		}
+	} else if(addr >= 0xE00000) {
+		return { (int32_t)(addr & 0xFFFF), MemoryType::GenesisM68KRam };
+	} else if(addr >= 0xA00000 && addr < 0xA02000) {
+		return { (int32_t)(addr & 0x1FFF), MemoryType::GenesisZ80Ram };
 	}
 
 	return { -1, MemoryType::None };
@@ -1015,45 +997,59 @@ AddressInfo GenesisMemoryManager::GetAbsoluteAddress(uint32_t addr, CpuType cpuT
 
 AddressInfo GenesisMemoryManager::GetRelativeAddress(AddressInfo& absAddress, CpuType cpuType)
 {
-	//Reverse mapping of GetAbsoluteAddress: given an absolute address in a
-	//memory region, find the CPU-relative address that maps to it.
-	if(cpuType == CpuType::GenesisM68K) {
-		switch(absAddress.Type) {
-			case MemoryType::GenesisCartridgeRom:
-				if(absAddress.Address < (int32_t)_romSize) {
-					return { absAddress.Address, MemoryType::GenesisCartridgeRom };
-				}
-				break;
-			case MemoryType::GenesisM68KRam:
-				if(absAddress.Address < (int32_t)M68KRamSize) {
-					return { 0xE00000 + absAddress.Address, MemoryType::GenesisM68KRam };
-				}
-				break;
-			case MemoryType::GenesisCartridgeRam:
-				if(_sram && absAddress.Address < (int32_t)_sramSize) {
-					//For odd-byte SRAM, SRAM byte N lives at M68K address
-					//_sramStart + 2*N (one byte per word). For word SRAM the
-					//address is _sramStart + N (byte-addressed).
-					uint32_t m68kAddr = _sramOddByte ? _sramStart + (uint32_t)absAddress.Address * 2 : _sramStart + (uint32_t)absAddress.Address;
-					return { (int32_t)m68kAddr, MemoryType::GenesisCartridgeRam };
-				}
-				break;
-			case MemoryType::GenesisZ80Ram:
-				if(absAddress.Address < (int32_t)Z80RamSize) {
-					return { 0xA00000 + (absAddress.Address & 0x1FFF), MemoryType::GenesisZ80Ram };
-				}
-				break;
-			default: break;
+	if(absAddress.Address < 0) {
+		return { -1, MemoryType::None };
+	}
+
+	uint32_t offset = absAddress.Address;
+	if(cpuType == CpuType::GenesisZ80 && absAddress.Type == MemoryType::GenesisZ80Ram && offset < Z80RamSize) {
+		return { (int32_t)offset, MemoryType::GenesisZ80Memory };
+	}
+
+	auto translate = [&](uint32_t address) -> AddressInfo {
+		MemoryType type = MemoryType::GenesisM68KMemory;
+		if(cpuType == CpuType::GenesisZ80) {
+			if((address >> 15) != _z80Bank) {
+				return { -1, MemoryType::None };
+			}
+			type = MemoryType::GenesisZ80Memory;
+			address = 0x8000 | (address & 0x7FFF);
 		}
-	} else if(cpuType == CpuType::GenesisZ80) {
-		switch(absAddress.Type) {
-			case MemoryType::GenesisZ80Ram:
-				if(absAddress.Address < (int32_t)Z80RamSize) {
-					return { absAddress.Address & 0x1FFF, MemoryType::GenesisZ80Ram };
-				}
-				break;
-			default: break;
+		AddressInfo mapped = GetAbsoluteAddress(address, cpuType);
+		if(mapped.Type == absAddress.Type && mapped.Address == absAddress.Address) {
+			return { (int32_t)address, type };
 		}
+		return { -1, MemoryType::None };
+	};
+
+	switch(absAddress.Type) {
+		case MemoryType::GenesisCartridgeRom:
+			if(offset < _romSize && offset < 0x1000000) {
+				uint32_t stride = _useSsfMapper ? 0x80000 : _romSize;
+				for(uint32_t address = offset % stride; address < 0x400000; address += stride) {
+					AddressInfo relative = translate(address);
+					if(relative.Address >= 0) {
+						return relative;
+					}
+				}
+			}
+			break;
+		case MemoryType::GenesisCartridgeRam:
+			if(_sram && offset < _sramSize) {
+				return translate(_sramStart + (_sramOddByte ? offset * 2 + 1 : offset));
+			}
+			break;
+		case MemoryType::GenesisM68KRam:
+			if(offset < M68KRamSize) {
+				return translate(0xE00000 + offset);
+			}
+			break;
+		case MemoryType::GenesisZ80Ram:
+			if(offset < Z80RamSize) {
+				return translate(0xA00000 + offset);
+			}
+			break;
+		default: break;
 	}
 	return { -1, MemoryType::None };
 }
@@ -1077,15 +1073,13 @@ uint8_t GenesisMemoryManager::M68KDebugRead(uint32_t address)
 		}
 		if(address >= _sramStart && address < GetSramEnd() && _sram && _sramEnable) {
 			uint32_t offset = address - _sramStart;
-			//Flat 64KB array: byte at offset is directly indexed.
-			//For odd-byte SRAM, even offsets hold the upper byte
-			//(0xFF by default), odd offsets hold SRAM data.
-			return offset < _sramSize ? _sram[offset] : 0xFF;
+			uint32_t index = _sramOddByte ? offset >> 1 : offset;
+			return _sram[index];
 		}
 		//Apply SSF2 bank translation so the debugger sees the same byte
 		//the CPU would see at this M68K address.
 		uint32_t offset = TranslateRomAddress(address);
-		return offset < _romSize ? _rom[offset] : 0xFF;
+		return (_romEnable || !_tmssEnable) && offset < _romSize ? _rom[offset] : 0xFF;
 	}
 
 	//0xA00000-0xA01FFF: Z80 RAM

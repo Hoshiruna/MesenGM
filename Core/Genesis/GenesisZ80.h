@@ -16,6 +16,7 @@
 //   - NMOS mode only (Genesis uses NMOS Z80).
 
 class Emulator;
+enum class MemoryOperationType;
 
 class GenesisZ80 final : public ISerializable
 {
@@ -158,7 +159,8 @@ private:
 
 	//--- Memory helpers ---
 	void Wait(uint32_t clocks = 1);
-	uint8_t Opcode();
+	uint8_t ReadBus(uint16_t addr, MemoryOperationType type);
+	uint8_t Opcode(bool firstByte = false);
 	uint8_t Operand();
 	uint16_t Operands();
 	void Push(uint16_t value);

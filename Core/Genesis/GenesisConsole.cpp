@@ -10,6 +10,7 @@
 #include "Genesis/GenesisDefaultVideoFilter.h"
 #include "Shared/Emulator.h"
 #include "Shared/EmuSettings.h"
+#include "Shared/EventType.h"
 #include "Shared/BatteryManager.h"
 #include "Shared/Video/VideoDecoder.h"
 #include "Shared/RewindManager.h"
@@ -323,6 +324,8 @@ void GenesisConsole::RunFrame()
 	_controlManager->UpdateInputState();
 
 	_vdp->BeginFrame();
+	_emu->ProcessEvent(EventType::StartFrame, CpuType::GenesisM68K);
+	_emu->ProcessEvent(EventType::StartFrame, CpuType::GenesisZ80);
 
 	//Genesis frame timing:
 	//NTSC: 262 scanlines per frame, ~59.92 fps
@@ -508,7 +511,8 @@ uint32_t GenesisConsole::GetMasterClockRate()
 AddressInfo GenesisConsole::GetAbsoluteAddress(AddressInfo& relAddress)
 {
 	if(_memoryManager) {
-		return _memoryManager->GetAbsoluteAddress((uint32_t)relAddress.Address, CpuType::GenesisM68K);
+		CpuType cpuType = relAddress.Type == MemoryType::GenesisZ80Memory ? CpuType::GenesisZ80 : CpuType::GenesisM68K;
+		return _memoryManager->GetAbsoluteAddress((uint32_t)relAddress.Address, cpuType);
 	}
 	return { -1, MemoryType::None };
 }
@@ -528,32 +532,11 @@ void GenesisConsole::GetConsoleState(BaseState& state, ConsoleType consoleType)
 	gs.Region = _genesisRegion;
 
 	if(_m68k) {
-		for(int i = 0; i < 8; i++) {
-			gs.M68K.D[i] = _m68k->GetDataReg(i);
-			gs.M68K.A[i] = _m68k->GetAddrReg(i);
-		}
-		gs.M68K.PC = _m68k->GetPC();
-		gs.M68K.SR = _m68k->GetSR();
-		gs.M68K.SSP = _m68k->GetAddrReg(7);
-		gs.M68K.Stopped = _m68k->IsStopped();
+		GetCpuState(gs.M68K);
 	}
 
 	if(_z80) {
-		gs.Z80.A = _z80->GetA();
-		gs.Z80.Flags = _z80->GetFlags();
-		gs.Z80.B = _z80->GetB();
-		gs.Z80.C = _z80->GetC();
-		gs.Z80.D = _z80->GetD();
-		gs.Z80.E = _z80->GetE();
-		gs.Z80.H = _z80->GetH();
-		gs.Z80.L = _z80->GetL();
-		gs.Z80.IX = _z80->GetIX();
-		gs.Z80.IY = _z80->GetIY();
-		gs.Z80.SP = _z80->GetSP();
-		gs.Z80.PC = _z80->GetPC();
-		gs.Z80.I = _z80->GetI();
-		gs.Z80.R = _z80->GetR();
-		gs.Z80.Halted = _z80->IsHalted();
+		GetCpuState(gs.Z80);
 	}
 
 	if(_vdp) {
@@ -566,6 +549,39 @@ void GenesisConsole::GetConsoleState(BaseState& state, ConsoleType consoleType)
 			gs.Vdp.Cram[i] = _vdp->DebugReadCRAM(i);
 		}
 	}
+}
+
+void GenesisConsole::GetCpuState(GenesisM68KState& state)
+{
+	for(int i = 0; i < 8; i++) {
+		state.D[i] = _m68k->GetDataReg(i);
+		state.A[i] = _m68k->GetAddrReg(i);
+	}
+	state.PC = _m68k->GetInstructionPC();
+	state.SR = _m68k->GetSR();
+	state.SSP = _m68k->GetSSP();
+	state.Stopped = _m68k->IsStopped();
+	state.CycleCount = GetCpuMasterClock(CpuType::GenesisM68K) / GenesisM68kClockDivider;
+}
+
+void GenesisConsole::GetCpuState(GenesisZ80State& state)
+{
+	state.A = _z80->GetA();
+	state.Flags = _z80->GetFlags();
+	state.B = _z80->GetB();
+	state.C = _z80->GetC();
+	state.D = _z80->GetD();
+	state.E = _z80->GetE();
+	state.H = _z80->GetH();
+	state.L = _z80->GetL();
+	state.IX = _z80->GetIX();
+	state.IY = _z80->GetIY();
+	state.SP = _z80->GetSP();
+	state.PC = _z80->GetPC();
+	state.I = _z80->GetI();
+	state.R = _z80->GetR();
+	state.Halted = _z80->IsHalted();
+	state.CycleCount = GetCpuMasterClock(CpuType::GenesisZ80) / GenesisZ80ClockDivider;
 }
 
 void GenesisConsole::UpdateRegion()

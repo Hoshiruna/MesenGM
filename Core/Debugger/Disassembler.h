@@ -46,6 +46,8 @@ public:
 
 	uint32_t BuildCache(AddressInfo& addrInfo, uint8_t cpuFlags, CpuType type);
 	void ResetPrgCache();
+	DisassemblyInfo CacheGenesisInstruction(AddressInfo address, uint32_t pc, CpuType cpuType, uint32_t prefetch);
+	void ResetGenesisRamCache();
 	void InvalidateCache(AddressInfo addrInfo, CpuType type);
 
 	__forceinline DisassemblyInfo GetDisassemblyInfo(AddressInfo& info, uint32_t cpuAddress, uint8_t cpuFlags, CpuType type)

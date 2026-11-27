@@ -130,7 +130,7 @@ int BreakpointManager::InternalCheckBreakpoint(MemoryOperationInfo operationInfo
 				continue;
 			}
 
-			if(breakpoints[i].IsMarked() && processMarkedBreakpoints) {
+			if(_eventManager && breakpoints[i].IsMarked() && processMarkedBreakpoints) {
 				_eventManager->AddEvent(DebugEventType::Breakpoint, operationInfo, breakpoints[i].GetId());
 			}
 			if(breakpoints[i].IsEnabled()) {

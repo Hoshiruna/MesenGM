@@ -112,6 +112,8 @@ public:
 	AddressInfo GetAbsoluteAddress(AddressInfo& relAddress) override;
 	AddressInfo GetRelativeAddress(AddressInfo& absAddress, CpuType cpuType) override;
 	void GetConsoleState(BaseState& state, ConsoleType consoleType) override;
+	void GetCpuState(GenesisM68KState& state);
+	void GetCpuState(GenesisZ80State& state);
 
 	GenesisRegion GetGenesisRegion() { return _genesisRegion; }
 	GenesisModel GetModel() { return _model; }

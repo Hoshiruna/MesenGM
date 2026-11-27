@@ -195,7 +195,7 @@ namespace Mesen.Debugger
 		public UInt32 Value;
 		public CpuType LineCpuType;
 
-		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
 		public byte[] ByteCode;
 
 		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 1000)]

@@ -33,7 +33,7 @@ struct EffectiveAddressInfo
 class DisassemblyInfo
 {
 private:
-	uint8_t _byteCode[8];
+	uint8_t _byteCode[10];
 	uint8_t _opSize;
 	uint8_t _flags;
 	CpuType _cpuType;
@@ -49,6 +49,7 @@ public:
 	bool IsInitialized();
 	bool IsValid(uint8_t cpuFlags);
 	void Reset();
+	void SetM68KPrefetch(uint32_t words);
 
 	void GetDisassembly(string& out, uint32_t memoryAddr, LabelManager* labelManager, EmuSettings* settings);
 
@@ -58,7 +59,7 @@ public:
 	uint8_t GetFlags();
 	uint8_t* GetByteCode();
 
-	void GetByteCode(uint8_t copyBuffer[8]);
+	void GetByteCode(uint8_t copyBuffer[10]);
 	void GetByteCode(string& out, bool lowerCase);
 
 	static uint8_t GetOpSize(uint32_t opCode, uint8_t flags, CpuType type, uint32_t cpuAddress, MemoryType memType, MemoryDumper* memoryDumper);

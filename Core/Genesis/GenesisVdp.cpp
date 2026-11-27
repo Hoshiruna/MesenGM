@@ -165,6 +165,7 @@ void GenesisVdp::Htick()
 		}
 	}
 	IrqPoll();
+	_emu->ProcessPpuCycle<CpuType::GenesisM68K>();
 }
 
 void GenesisVdp::Vtick()

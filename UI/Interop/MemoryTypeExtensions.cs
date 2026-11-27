@@ -125,12 +125,14 @@ namespace Mesen.Interop
 				case MemoryType.WsPort:
 					return CpuType.Ws;
 
+				case MemoryType.GenesisM68KMemory:
 				case MemoryType.GenesisM68KRam:
 				case MemoryType.GenesisVdpVram:
 				case MemoryType.GenesisCartridgeRom:
 				case MemoryType.GenesisCartridgeRam:
 					return CpuType.GenesisM68K;
 
+				case MemoryType.GenesisZ80Memory:
 				case MemoryType.GenesisZ80Ram:
 					return CpuType.GenesisZ80;
 
@@ -167,6 +169,7 @@ namespace Mesen.Interop
 
 				case MemoryType.SmsVideoRam:
 				case MemoryType.SmsPaletteRam:
+				case MemoryType.GenesisVdpVram:
 					return true;
 
 				case MemoryType.GbaVideoRam:
@@ -246,6 +249,8 @@ namespace Mesen.Interop
 				case MemoryType.SmsMemory:
 				case MemoryType.GbaMemory:
 				case MemoryType.WsMemory:
+				case MemoryType.GenesisM68KMemory:
+				case MemoryType.GenesisZ80Memory:
 					return true;
 			}
 			return false;
@@ -272,6 +277,7 @@ namespace Mesen.Interop
 				case MemoryType.GbaPrgRom:
 				case MemoryType.GbaBootRom:
 				case MemoryType.WsPrgRom:
+				case MemoryType.GenesisCartridgeRom:
 					return true;
 			}
 			return false;
@@ -341,6 +347,14 @@ namespace Mesen.Interop
 				case MemoryType.GbaPaletteRam:
 					return true;
 
+				case MemoryType.GenesisM68KMemory:
+				case MemoryType.GenesisZ80Memory:
+				case MemoryType.GenesisM68KRam:
+				case MemoryType.GenesisZ80Ram:
+				case MemoryType.GenesisCartridgeRom:
+				case MemoryType.GenesisCartridgeRam:
+					return true;
+
 				//WS
 				case MemoryType.WsMemory:
 				case MemoryType.WsPrgRom:
@@ -370,6 +384,8 @@ namespace Mesen.Interop
 				case MemoryType.SmsMemory:
 				case MemoryType.GbaMemory:
 				case MemoryType.WsMemory:
+				case MemoryType.GenesisM68KMemory:
+				case MemoryType.GenesisZ80Memory:
 					return true;
 			}
 
@@ -403,6 +419,7 @@ namespace Mesen.Interop
 
 				case MemoryType.WsMemory:
 				case MemoryType.WsPrgRom:
+				case MemoryType.GenesisCartridgeRom:
 					return true;
 
 				case MemoryType.NesPpuMemory:
@@ -558,6 +575,8 @@ namespace Mesen.Interop
 				MemoryType.WsInternalEeprom => "IEEPROM",
 				MemoryType.WsPort => "PORT",
 
+				MemoryType.GenesisM68KMemory => "68000 Bus",
+				MemoryType.GenesisZ80Memory => "Z80 Bus",
 				MemoryType.GenesisM68KRam => "68K RAM",
 				MemoryType.GenesisZ80Ram => "Z80 RAM",
 				MemoryType.GenesisVdpVram => "VRAM",

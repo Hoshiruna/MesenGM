@@ -48,10 +48,10 @@ void GenesisZ80::Reset()
 uint32_t GenesisZ80::ExecuteInstruction()
 {
 	_cycleAccum = 0;
-	if(_emu) {
-		_emu->ProcessInstruction<CpuType::GenesisZ80>();
-	}
 	if(!_resetLine || _busreqLatch) {
+		if(_emu) {
+			_emu->ProcessHaltedCpu<CpuType::GenesisZ80>();
+		}
 		Wait(1);
 		return _cycleAccum;
 	}
@@ -122,6 +122,9 @@ uint32_t GenesisZ80::ExecuteInstruction()
 		return _cycleAccum;
 	}
 
+	if(_emu) {
+		_emu->ProcessInstruction<CpuType::GenesisZ80>();
+	}
 	Instruction();
 	return _cycleAccum;
 }
@@ -152,15 +155,25 @@ void GenesisZ80::SetReset(bool line)
 
 void GenesisZ80::Wait(uint32_t clocks)
 { BusWait(clocks); }
-uint8_t GenesisZ80::Opcode()
+uint8_t GenesisZ80::ReadBus(uint16_t addr, MemoryOperationType type)
+{
+	uint8_t value = BusRead(addr);
+	if(_emu) {
+		_emu->ProcessMemoryRead<CpuType::GenesisZ80>(addr, value, type);
+	}
+	return value;
+}
+
+uint8_t GenesisZ80::Opcode(bool firstByte)
 {
 	Wait(4);
-	return BusRead(_r.pc++);
+	uint16_t address = _r.pc++;
+	return firstByte ? BusRead(address) : ReadBus(address, MemoryOperationType::ExecOperand);
 }
 uint8_t GenesisZ80::Operand()
 {
 	Wait(3);
-	return BusRead(_r.pc++);
+	return ReadBus(_r.pc++, MemoryOperationType::ExecOperand);
 }
 uint16_t GenesisZ80::Operands()
 {
@@ -192,12 +205,14 @@ uint16_t GenesisZ80::Displace(uint16_t& reg)
 uint8_t GenesisZ80::Read(uint16_t addr)
 {
 	Wait(3);
-	return BusRead(addr);
+	return ReadBus(addr, MemoryOperationType::Read);
 }
 void GenesisZ80::Write(uint16_t addr, uint8_t data)
 {
 	Wait(3);
-	BusWrite(addr, data);
+	if(!_emu || _emu->ProcessMemoryWrite<CpuType::GenesisZ80>(addr, data, MemoryOperationType::Write)) {
+		BusWrite(addr, data);
+	}
 }
 uint8_t GenesisZ80::In(uint16_t port)
 {
@@ -771,9 +786,11 @@ void GenesisZ80::Instruction()
 	}
 
 	uint8_t code;
+	bool firstByte = true;
 	while(true) {
 		IncrementR();
-		code = Opcode();
+		code = Opcode(firstByte);
+		firstByte = false;
 		if(code == 0xDD) {
 			_r.prefix = Registers::IX;
 			continue;

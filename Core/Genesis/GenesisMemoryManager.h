@@ -69,7 +69,7 @@ public:
 	void SaveBattery();
 
 	//--- Address translation (debugger / cheats) ---
-	AddressInfo GetAbsoluteAddress(uint32_t addr, CpuType cpuType);
+	AddressInfo GetAbsoluteAddress(uint32_t addr, CpuType cpuType, bool forWrite = false);
 	AddressInfo GetRelativeAddress(AddressInfo& absAddress, CpuType cpuType);
 
 	//--- Debug access (no side effects) ---

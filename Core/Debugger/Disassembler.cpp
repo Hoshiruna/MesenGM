@@ -36,7 +36,9 @@ Disassembler::Disassembler(IConsole* console, Debugger* debugger)
 	_memoryDumper = _debugger->GetMemoryDumper();
 
 	for(int i = (int)MemoryType::SnesPrgRom; i < DebugUtilities::GetMemoryTypeCount(); i++) {
-		InitSource((MemoryType)i);
+		if(!DebugUtilities::IsRelativeMemory((MemoryType)i)) {
+			InitSource((MemoryType)i);
+		}
 	}
 }
 
@@ -84,6 +86,32 @@ uint32_t Disassembler::BuildCache(AddressInfo& addrInfo, uint8_t cpuFlags, CpuTy
 	return returnSize;
 }
 
+DisassemblyInfo Disassembler::CacheGenesisInstruction(AddressInfo address, uint32_t pc, CpuType cpuType, uint32_t prefetch)
+{
+	DisassemblyInfo instruction;
+	if(address.Address >= 0) {
+		instruction = GetSource(address.Type).Cache[address.Address];
+	}
+	if(!instruction.IsInitialized() || instruction.GetCpuType() != cpuType) {
+		instruction.Initialize(pc, 0, cpuType, DebugUtilities::GetCpuMemoryType(cpuType), _memoryDumper);
+	}
+	if(cpuType == CpuType::GenesisM68K) {
+		instruction.SetM68KPrefetch(prefetch);
+	}
+	if(address.Address >= 0) {
+		GetSource(address.Type).Cache[address.Address] = instruction;
+	}
+	return instruction;
+}
+
+void Disassembler::ResetGenesisRamCache()
+{
+	for(MemoryType type : { MemoryType::GenesisM68KRam, MemoryType::GenesisZ80Ram, MemoryType::GenesisCartridgeRam }) {
+		auto& cache = GetSource(type).Cache;
+		std::fill(cache.begin(), cache.end(), DisassemblyInfo {});
+	}
+}
+
 void Disassembler::ResetPrgCache()
 {
 	InitSource(MemoryType::SnesPrgRom);
@@ -99,7 +127,8 @@ void Disassembler::InvalidateCache(AddressInfo addrInfo, CpuType type)
 {
 	if(addrInfo.Address >= 0) {
 		DisassemblerSource& src = GetSource(addrInfo.Type);
-		for(int i = 0; i < 4; i++) {
+		int lookback = type == CpuType::GenesisM68K || type == CpuType::GenesisZ80 ? 10 : 4;
+		for(int i = 0; i < lookback; i++) {
 			if(addrInfo.Address >= i) {
 				src.Cache[addrInfo.Address - i].Reset();
 			}
@@ -134,6 +163,8 @@ vector<DisassemblyResult> Disassembler::Disassemble(CpuType cpuType, uint16_t ba
 
 	AddressInfo relAddress = {};
 	relAddress.Type = DebugUtilities::GetCpuMemoryType(cpuType);
+	bool genesis = cpuType == CpuType::GenesisM68K || cpuType == CpuType::GenesisZ80;
+	int32_t currentPc = genesis ? (int32_t)_debugger->GetProgramCounter(cpuType, true) : -1;
 
 	if(bank > GetMaxBank(cpuType)) {
 		return results;
@@ -200,9 +231,9 @@ vector<DisassemblyResult> Disassembler::Disassemble(CpuType cpuType, uint16_t ba
 		bool isCode = cdl ? cdl->IsCode(addrInfo.Address) : false;
 		bool isData = cdl ? cdl->IsData(addrInfo.Address) : false;
 
-		if(disassemblyInfo.IsInitialized()) {
+		if(disassemblyInfo.IsInitialized() && (!genesis || disassemblyInfo.GetCpuType() == cpuType)) {
 			opSize = disassemblyInfo.GetOpSize();
-		} else if((isData && disData) || (!isData && !isCode && disUnident)) {
+		} else if((genesis && i == currentPc) || ((cpuType != CpuType::GenesisM68K || (i & 1) == 0) && ((isData && disData) || (!isData && !isCode && disUnident)))) {
 			disassemblyInfo.Initialize(i, cpuFlags[addrInfo.Address & 0x03], cpuType, relAddress.Type, _memoryDumper);
 			opSize = disassemblyInfo.GetOpSize();
 		}
@@ -257,7 +288,7 @@ vector<DisassemblyResult> Disassembler::Disassemble(CpuType cpuType, uint16_t ba
 			for(int j = 1; j < opSize && i + j < bankEnd; j++) {
 				relAddress.Address = i + 1;
 				addrInfo = _console->GetAbsoluteAddress(relAddress);
-				if(addrInfo.Type != prevMemType || addrInfo.Address < 0 || src.Cache[addrInfo.Address].IsInitialized()) {
+				if(addrInfo.Type != prevMemType || addrInfo.Address < 0 || (genesis && relAddress.Address == currentPc) || (src.Cache[addrInfo.Address].IsInitialized() && (!genesis || src.Cache[addrInfo.Address].GetCpuType() == cpuType))) {
 					break;
 				}
 				i++;
@@ -380,7 +411,8 @@ void Disassembler::GetLineData(DisassemblyResult& row, CpuType type, MemoryType 
 			DisassemblyInfo disInfo = src.Cache[row.Address.Address];
 
 			//Always use Sa1 as the cpu type when disassembling Sa1 address space
-			CpuType lineCpuType = type != CpuType::Sa1 && disInfo.IsInitialized() ? disInfo.GetCpuType() : type;
+			bool useCachedCpu = type != CpuType::Sa1 && type != CpuType::GenesisM68K && type != CpuType::GenesisZ80;
+			CpuType lineCpuType = useCachedCpu && disInfo.IsInitialized() ? disInfo.GetCpuType() : type;
 
 			data.LineCpuType = lineCpuType;
 			CdlManager* cdlManager = _debugger->GetCdlManager();
@@ -606,6 +638,15 @@ void Disassembler::GetLineData(DisassemblyResult& row, CpuType type, MemoryType 
 					}
 					break;
 				}
+			}
+
+			if(type == CpuType::GenesisM68K || type == CpuType::GenesisZ80) {
+				if(disInfo.IsInitialized() && disInfo.GetCpuType() == type) {
+					data.Flags |= LineFlags::VerifiedCode;
+				} else {
+					disInfo.Initialize(row.CpuAddress, 0, type, memType, _memoryDumper);
+				}
+				data.OpSize = disInfo.GetOpSize();
 			}
 
 			if(!showMemoryValues) {

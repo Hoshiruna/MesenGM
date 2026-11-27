@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Genesis/Debugger/GenesisDisUtils.h"
 #include <algorithm>
 #include "Debugger/DisassemblyInfo.h"
 #include "Debugger/MemoryDumper.h"
@@ -36,12 +37,21 @@ void DisassemblyInfo::Initialize(uint32_t cpuAddress, uint8_t cpuFlags, CpuType 
 	_cpuType = cpuType;
 	_flags = cpuFlags;
 
+	if(cpuType == CpuType::GenesisM68K) {
+		for(int i = 0; i < GenesisDisUtils::M68KInstructionSize; i++) {
+			_byteCode[i] = memoryDumper->GetMemoryValue(memType, (cpuAddress + i) & 0xFFFFFF);
+		}
+		_opSize = GenesisDisUtils::DecodeM68K(_byteCode, cpuAddress);
+		_initialized = true;
+		return;
+	}
+
 	_byteCode[0] = memoryDumper->GetMemoryValue(memType, cpuAddress);
 
 	_opSize = GetOpSize(_byteCode[0], _flags, _cpuType, cpuAddress, memType, memoryDumper);
 
-	for(int i = 1; i < _opSize && i < 8; i++) {
-		_byteCode[i] = memoryDumper->GetMemoryValue(memType, cpuAddress + i);
+	for(int i = 1; i < _opSize && i < (int)sizeof(_byteCode); i++) {
+		_byteCode[i] = memoryDumper->GetMemoryValue(memType, memType == MemoryType::GenesisZ80Memory ? (uint16_t)(cpuAddress + i) : cpuAddress + i);
 	}
 
 	_initialized = true;
@@ -55,6 +65,15 @@ bool DisassemblyInfo::IsInitialized()
 bool DisassemblyInfo::IsValid(uint8_t cpuFlags)
 {
 	return _flags == cpuFlags;
+}
+
+void DisassemblyInfo::SetM68KPrefetch(uint32_t words)
+{
+	uint8_t prefetch[] = { (uint8_t)(words >> 24), (uint8_t)(words >> 16), (uint8_t)(words >> 8), (uint8_t)words };
+	if(memcmp(_byteCode, prefetch, sizeof(prefetch)) != 0) {
+		memcpy(_byteCode, prefetch, sizeof(prefetch));
+		_opSize = GenesisDisUtils::DecodeM68K(_byteCode, 0);
+	}
 }
 
 void DisassemblyInfo::Reset()
@@ -78,6 +97,17 @@ void DisassemblyInfo::GetDisassembly(string& out, uint32_t memoryAddr, LabelMana
 		case CpuType::Gameboy: GameboyDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
 		case CpuType::Nes: NesDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
 		case CpuType::Pce: PceDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
+		case CpuType::GenesisM68K: {
+			string instruction;
+			GenesisDisUtils::DecodeM68K(_byteCode, memoryAddr, &instruction);
+			bool lowerCase = settings->GetDebugConfig().UseLowerCaseDisassembly;
+			for(char& c : instruction) {
+				c = lowerCase ? (char)std::tolower((unsigned char)c) : (char)std::toupper((unsigned char)c);
+			}
+			out += instruction;
+			break;
+		}
+		case CpuType::GenesisZ80:
 		case CpuType::Sms: SmsDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
 		case CpuType::Gba: GbaDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
 		case CpuType::Ws: WsDisUtils::GetDisassembly(*this, out, memoryAddr, labelManager, settings); break;
@@ -113,6 +143,8 @@ EffectiveAddressInfo DisassemblyInfo::GetEffectiveAddress(Debugger* debugger, vo
 
 		case CpuType::Nes: return NesDisUtils::GetEffectiveAddress(*this, *(NesCpuState*)cpuState, debugger->GetMemoryDumper());
 		case CpuType::Pce: return PceDisUtils::GetEffectiveAddress(*this, (PceConsole*)debugger->GetConsole(), *(PceCpuState*)cpuState);
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: return {};
 		case CpuType::Sms: return SmsDisUtils::GetEffectiveAddress(*this, (SmsConsole*)debugger->GetConsole(), *(SmsCpuState*)cpuState);
 		case CpuType::Gba: return GbaDisUtils::GetEffectiveAddress(*this, (GbaConsole*)debugger->GetConsole(), *(GbaCpuState*)cpuState);
 		case CpuType::Ws: return WsDisUtils::GetEffectiveAddress(*this, (WsConsole*)debugger->GetConsole(), *(WsCpuState*)cpuState);
@@ -138,6 +170,7 @@ uint32_t DisassemblyInfo::GetFullOpCode()
 		default: return _byteCode[0];
 		case CpuType::NecDsp: return _byteCode[0] | (_byteCode[1] << 8) | (_byteCode[2] << 16);
 		case CpuType::Cx4: return _byteCode[1];
+		case CpuType::GenesisM68K: return (_byteCode[0] << 8) | _byteCode[1];
 		case CpuType::St018: return _byteCode[0] | (_byteCode[1] << 8) | (_opSize == 4 ? ((_byteCode[2] << 16) | (_byteCode[3] << 24)) : 0);
 		case CpuType::Gba: return _byteCode[0] | (_byteCode[1] << 8) | (_opSize == 4 ? ((_byteCode[2] << 16) | (_byteCode[3] << 24)) : 0);
 		case CpuType::Ws: return WsDisUtils::GetFullOpCode(*this);
@@ -159,7 +192,7 @@ uint8_t* DisassemblyInfo::GetByteCode()
 	return _byteCode;
 }
 
-void DisassemblyInfo::GetByteCode(uint8_t copyBuffer[8])
+void DisassemblyInfo::GetByteCode(uint8_t copyBuffer[10])
 {
 	memcpy(copyBuffer, _byteCode, _opSize);
 }
@@ -195,6 +228,8 @@ uint8_t DisassemblyInfo::GetOpSize(uint32_t opCode, uint8_t flags, CpuType type,
 		case CpuType::Gameboy: return GameboyDisUtils::GetOpSize(opCode);
 		case CpuType::Nes: return NesDisUtils::GetOpSize(opCode);
 		case CpuType::Pce: return PceDisUtils::GetOpSize(opCode);
+		case CpuType::GenesisM68K: return DisassemblyInfo(cpuAddress, flags, type, memType, memoryDumper).GetOpSize();
+		case CpuType::GenesisZ80:
 		case CpuType::Sms: return SmsDisUtils::GetOpSize(opCode, cpuAddress, memType, memoryDumper);
 		case CpuType::Gba: return GbaDisUtils::GetOpSize(opCode, flags);
 		case CpuType::Ws: return WsDisUtils::GetOpSize(cpuAddress, memType, memoryDumper);
@@ -216,6 +251,11 @@ bool DisassemblyInfo::IsJumpToSub()
 		case CpuType::Gameboy: return GameboyDisUtils::IsJumpToSub(GetOpCode());
 		case CpuType::Nes: return NesDisUtils::IsJumpToSub(GetOpCode());
 		case CpuType::Pce: return PceDisUtils::IsJumpToSub(GetOpCode());
+		case CpuType::GenesisM68K: return GenesisDisUtils::IsCall(GetFullOpCode<CpuType::GenesisM68K>());
+		case CpuType::GenesisZ80: {
+			auto op = SmsDisUtils::GetSmsOpInfo(*this);
+			return op.Op && !op.IsCbPrefix && !op.IsEdPrefix && SmsDisUtils::IsJumpToSub(op.ByteCode[0]);
+		}
 		case CpuType::Sms: return SmsDisUtils::IsJumpToSub(GetOpCode());
 		case CpuType::Gba: return GbaDisUtils::IsJumpToSub(GetFullOpCode<CpuType::Gba>(), _flags);
 		case CpuType::Ws: return WsDisUtils::IsJumpToSub(GetFullOpCode<CpuType::Ws>());
@@ -237,6 +277,11 @@ bool DisassemblyInfo::IsReturnInstruction()
 		case CpuType::Gameboy: return GameboyDisUtils::IsReturnInstruction(GetOpCode());
 		case CpuType::Nes: return NesDisUtils::IsReturnInstruction(GetOpCode());
 		case CpuType::Pce: return PceDisUtils::IsReturnInstruction(GetOpCode());
+		case CpuType::GenesisM68K: return GenesisDisUtils::IsReturn(GetFullOpCode<CpuType::GenesisM68K>());
+		case CpuType::GenesisZ80: {
+			auto op = SmsDisUtils::GetSmsOpInfo(*this);
+			return op.Op && !op.IsCbPrefix && SmsDisUtils::IsReturnInstruction(op.IsEdPrefix ? 0xED | (op.ByteCode[0] << 8) : op.ByteCode[0]);
+		}
 		case CpuType::Sms: return SmsDisUtils::IsReturnInstruction(_byteCode[0] | (_byteCode[1] << 8));
 		case CpuType::Gba: return GbaDisUtils::IsReturnInstruction(GetFullOpCode<CpuType::Gba>(), _flags);
 		case CpuType::Ws: return WsDisUtils::IsReturnInstruction(GetFullOpCode<CpuType::Ws>());
@@ -273,6 +318,11 @@ bool DisassemblyInfo::IsUnconditionalJump()
 		case CpuType::Gameboy: return GameboyDisUtils::IsUnconditionalJump(GetOpCode());
 		case CpuType::Nes: return NesDisUtils::IsUnconditionalJump(GetOpCode());
 		case CpuType::Pce: return PceDisUtils::IsUnconditionalJump(GetOpCode());
+		case CpuType::GenesisM68K: return GenesisDisUtils::IsUnconditionalJump(GetFullOpCode<CpuType::GenesisM68K>());
+		case CpuType::GenesisZ80: {
+			auto op = SmsDisUtils::GetSmsOpInfo(*this);
+			return op.Op && !op.IsCbPrefix && !op.IsEdPrefix && SmsDisUtils::IsUnconditionalJump(op.ByteCode[0]);
+		}
 		case CpuType::Sms: return SmsDisUtils::IsUnconditionalJump(GetOpCode());
 		case CpuType::Gba: return GbaDisUtils::IsUnconditionalJump(GetFullOpCode<CpuType::Gba>(), _flags);
 		case CpuType::Ws: return WsDisUtils::IsUnconditionalJump(GetFullOpCode<CpuType::Ws>());
@@ -299,6 +349,11 @@ bool DisassemblyInfo::IsJump()
 		case CpuType::Gameboy: return GameboyDisUtils::IsConditionalJump(GetOpCode());
 		case CpuType::Nes: return NesDisUtils::IsConditionalJump(GetOpCode());
 		case CpuType::Pce: return PceDisUtils::IsConditionalJump(GetOpCode());
+		case CpuType::GenesisM68K: return GenesisDisUtils::IsConditionalJump(GetFullOpCode<CpuType::GenesisM68K>());
+		case CpuType::GenesisZ80: {
+			auto op = SmsDisUtils::GetSmsOpInfo(*this);
+			return op.Op && !op.IsCbPrefix && !op.IsEdPrefix && SmsDisUtils::IsConditionalJump(op.ByteCode[0]);
+		}
 		case CpuType::Sms: return SmsDisUtils::IsConditionalJump(GetOpCode());
 		case CpuType::Gba: return GbaDisUtils::IsConditionalJump(GetFullOpCode<CpuType::Gba>(), _flags);
 		case CpuType::Ws: return WsDisUtils::IsConditionalJump(GetFullOpCode<CpuType::Ws>());
