@@ -1002,6 +1002,7 @@ namespace Mesen.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.Custom,
 					CustomText = ResourceHelper.GetMessage("OpenGenesisZ80Debugger"),
+					DynamicIcon = () => "Z80Debugger",
 					IsVisible = () => MainWindow.RomInfo.CpuTypes.Contains(CpuType.GenesisZ80),
 					OnClick = () => DebuggerWindow.GetOrOpenWindow(CpuType.GenesisZ80)
 				},
