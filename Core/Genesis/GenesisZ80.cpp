@@ -156,7 +156,9 @@ void GenesisZ80::SetReset(bool line)
 //--- Memory helpers ---
 
 void GenesisZ80::Wait(uint32_t clocks)
-{ BusWait(clocks); }
+{
+	BusWait(clocks);
+}
 uint8_t GenesisZ80::ReadBus(uint16_t addr, MemoryOperationType type)
 {
 	uint8_t value = BusRead(addr);
