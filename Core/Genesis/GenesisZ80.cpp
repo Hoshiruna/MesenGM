@@ -127,7 +127,9 @@ uint32_t GenesisZ80::ExecuteInstruction()
 }
 
 void GenesisZ80::SetIrq(bool line)
-{ _intLine = line; }
+{
+	_intLine = line;
+}
 void GenesisZ80::SetNmi(bool line)
 {
 	if(!_nmiLine && line) {
@@ -151,7 +153,9 @@ void GenesisZ80::SetReset(bool line)
 //--- Memory helpers ---
 
 void GenesisZ80::Wait(uint32_t clocks)
-{ BusWait(clocks); }
+{
+	BusWait(clocks);
+}
 uint8_t GenesisZ80::Opcode()
 {
 	Wait(4);
@@ -218,7 +222,9 @@ bool GenesisZ80::Parity(uint8_t v) const
 	return !(v & 1);
 }
 void GenesisZ80::IncrementR()
-{ _r.r = (_r.r & 0x80) | ((_r.r + 1) & 0x7F); }
+{
+	_r.r = (_r.r & 0x80) | ((_r.r + 1) & 0x7F);
+}
 
 uint16_t& GenesisZ80::HL()
 {
@@ -496,7 +502,9 @@ uint8_t GenesisZ80::OR(uint8_t x, uint8_t y)
 }
 
 uint8_t GenesisZ80::RES(uint8_t bit, uint8_t x)
-{ return x & ~(1 << bit); }
+{
+	return x & ~(1 << bit);
+}
 
 uint8_t GenesisZ80::RL(uint8_t x)
 {
@@ -602,7 +610,9 @@ uint8_t GenesisZ80::RRC(uint8_t x)
 }
 
 uint8_t GenesisZ80::SET(uint8_t bit, uint8_t x)
-{ return x | (1 << bit); }
+{
+	return x | (1 << bit);
+}
 
 uint8_t GenesisZ80::SLA(uint8_t x)
 {

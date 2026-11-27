@@ -1360,9 +1360,13 @@ bool GenesisVdp::GetVblankIrq() const
 	return _irq.vblank.enable && _irq.vblank.pending && !_irq.delay;
 }
 bool GenesisVdp::GetHblankIrq() const
-{ return _irq.hblank.enable && _irq.hblank.pending; }
+{
+	return _irq.hblank.enable && _irq.hblank.pending;
+}
 bool GenesisVdp::GetExternalIrq() const
-{ return _irq.external.enable && _irq.external.pending; }
+{
+	return _irq.external.enable && _irq.external.pending;
+}
 
 void GenesisVdp::AcknowledgeIrq(uint8_t level)
 {
