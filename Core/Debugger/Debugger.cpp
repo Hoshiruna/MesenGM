@@ -981,6 +981,13 @@ void Debugger::GetPpuState(BaseState& state, CpuType cpuType)
 			GetDebugger<CpuType::Ws, WsDebugger>()->GetPpuState(state);
 			break;
 		}
+
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: {
+			DebugBreakHelper helper(this);
+			static_cast<GenesisConsole*>(_console)->GetVdp()->GetDebugTimingState(static_cast<GenesisVdpTimingState&>(state));
+			break;
+		}
 	}
 }
 
@@ -1216,6 +1223,26 @@ uint32_t Debugger::GetExecutionTrace(TraceRow output[], uint32_t startOffset, ui
 		}
 	}
 
+	return count;
+}
+
+uint32_t Debugger::GetCpuExecutionTrace(CpuType cpuType, TraceRow output[], uint32_t startOffset, uint32_t maxLineCount)
+{
+	if(!HasCpuType(cpuType)) {
+		return 0;
+	}
+	DebugBreakHelper helper(this);
+	ITraceLogger* logger = GetTraceLogger(cpuType);
+	if(!logger) {
+		return 0;
+	}
+
+	uint32_t count = 0;
+	while(count < maxLineCount && logger->GetRowId(startOffset) >= 0) {
+		logger->GetExecutionTrace(output[count], startOffset);
+		count++;
+		startOffset++;
+	}
 	return count;
 }
 

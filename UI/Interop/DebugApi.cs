@@ -30,17 +30,21 @@ namespace Mesen.Interop
 		[DllImport(DllPath)] public static extern void StopLogTraceToFile();
 
 		[DllImport(DllPath)] public static extern void SetTraceOptions(CpuType cpuType, InteropTraceLoggerOptions options);
+		[DllImport(DllPath)][return: MarshalAs(UnmanagedType.I1)] public static extern bool SetTraceEnabled(CpuType cpuType, [MarshalAs(UnmanagedType.I1)] bool enabled);
 
 		public const int TraceLogBufferSize = 30000;
 		[DllImport(DllPath)] public static extern void ClearExecutionTrace();
 		[DllImport(DllPath, EntryPoint = "GetExecutionTrace")] private static extern UInt32 GetExecutionTraceWrapper(IntPtr output, UInt32 startOffset, UInt32 maxRowCount);
-		public static unsafe TraceRow[] GetExecutionTrace(UInt32 startOffset, UInt32 maxRowCount)
+		[DllImport(DllPath)] private static extern UInt32 GetCpuExecutionTrace(CpuType cpuType, IntPtr output, UInt32 startOffset, UInt32 maxRowCount);
+		public static unsafe TraceRow[] GetExecutionTrace(UInt32 startOffset, UInt32 maxRowCount, CpuType? cpuType = null)
 		{
 			TraceRow[] rows = new TraceRow[maxRowCount];
 
 			UInt32 rowCount;
 			fixed(TraceRow* ptr = rows) {
-				rowCount = DebugApi.GetExecutionTraceWrapper((IntPtr)ptr, startOffset, maxRowCount);
+				rowCount = cpuType is CpuType type
+					? GetCpuExecutionTrace(type, (IntPtr)ptr, startOffset, maxRowCount)
+					: GetExecutionTraceWrapper((IntPtr)ptr, startOffset, maxRowCount);
 			}
 
 			Array.Resize(ref rows, (int)rowCount);
@@ -124,6 +128,7 @@ namespace Mesen.Interop
 				CpuType.Sms => GetPpuState<SmsVdpState>(cpuType),
 				CpuType.Gba => GetPpuState<GbaPpuState>(cpuType),
 				CpuType.Ws => GetPpuState<WsPpuState>(cpuType),
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => GetPpuState<GenesisVdpTimingState>(cpuType),
 				_ => throw new Exception("Unsupported cpu type")
 			};
 		}
@@ -428,10 +433,11 @@ namespace Mesen.Interop
 		[DllImport(DllPath)] public static extern FrameInfo GetEventViewerDisplaySize(CpuType cpuType);
 		[DllImport(DllPath)] public static extern void GetEventViewerOutput(CpuType cpuType, IntPtr buffer, UInt32 bufferSize);
 
+		public const int CallstackBufferSize = 512;
 		[DllImport(DllPath, EntryPoint = "GetCallstack")] private static extern void GetCallstackWrapper(CpuType type, [In, Out] StackFrameInfo[] callstackArray, ref UInt32 callstackSize);
 		public static StackFrameInfo[] GetCallstack(CpuType type)
 		{
-			StackFrameInfo[] callstack = new StackFrameInfo[512];
+			StackFrameInfo[] callstack = new StackFrameInfo[CallstackBufferSize];
 			UInt32 callstackSize = 0;
 
 			DebugApi.GetCallstackWrapper(type, callstack, ref callstackSize);

@@ -342,6 +342,18 @@ void GenesisVdp::BeginFrame()
 	}
 }
 
+void GenesisVdp::GetDebugTimingState(GenesisVdpTimingState& state) const
+{
+	state.FrameCount = GetFrameCount();
+	state.VCounter = GetVCounter();
+	state.HCounter = GetHCounter();
+	state.FirstScanline = _state.topline;
+	state.LastScanline = _state.bottomline;
+	state.VBlank = IsVblank();
+	state.HBlank = IsHblank();
+	state.DisplayEnable = IsDisplayEnable();
+}
+
 void GenesisVdp::MarkFrameSubmitted()
 {
 	_submittedBufferIndex = _renderBufferIndex;

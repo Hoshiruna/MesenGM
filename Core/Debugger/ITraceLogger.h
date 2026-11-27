@@ -34,6 +34,7 @@ public:
 	virtual void GetExecutionTrace(TraceRow& row, uint32_t offset) = 0;
 	virtual void Clear() = 0;
 	virtual void SetOptions(TraceLoggerOptions options) = 0;
+	virtual void SetEnabled(bool enabled) = 0;
 
 	__forceinline bool IsEnabled() { return _enabled; }
 };

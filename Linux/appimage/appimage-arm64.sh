@@ -7,7 +7,7 @@ make -j$(nproc) -O LTO=true STATICLINK=true SYSTEM_LIBEVDEV=false
 curl -SL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage -o appimagetool
 
 mkdir -p AppDir/usr/bin
-cp bin/linux-arm64/Release/linux-arm64/publish/MesenGM AppDir/usr/bin/Mesen
+cp bin/linux-arm64/Release/linux-arm64/publish/Mesen AppDir/usr/bin
 chmod +x AppDir/usr/bin
 ln -sr AppDir/usr/bin/Mesen AppDir/AppRun
 

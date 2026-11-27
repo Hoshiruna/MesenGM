@@ -99,6 +99,18 @@ struct GenesisVdpState : public BaseState
 	uint16_t Cram[64];
 };
 
+struct GenesisVdpTimingState : public BaseState
+{
+	uint32_t FrameCount;
+	uint16_t VCounter;
+	uint16_t HCounter;
+	uint16_t FirstScanline;
+	uint16_t LastScanline;
+	bool VBlank;
+	bool HBlank;
+	bool DisplayEnable;
+};
+
 struct GenesisState : public BaseState
 {
 	GenesisM68KState M68K;
