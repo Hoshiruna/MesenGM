@@ -224,10 +224,14 @@ uint16_t GenesisM68K::ReadSR() const
 }
 
 uint16_t GenesisM68K::GetSR() const
-{ return ReadSR(); }
+{
+	return ReadSR();
+}
 
 void GenesisM68K::SetSR(uint16_t sr)
-{ WriteSR(sr); }
+{
+	WriteSR(sr);
+}
 
 void GenesisM68K::WriteCCR(uint8_t ccr)
 {
@@ -1967,7 +1971,9 @@ template<uint32_t Size> void GenesisM68K::instructionNEGX(EffectiveAddress with)
 }
 
 void GenesisM68K::instructionNOP()
-{ Prefetch(); }
+{
+	Prefetch();
+}
 
 template<uint32_t Size> void GenesisM68K::instructionNOT(EffectiveAddress with)
 {
