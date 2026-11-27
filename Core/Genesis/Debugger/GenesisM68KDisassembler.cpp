@@ -130,17 +130,9 @@ static char* make_signed_hex_str_32(uint val);
 /* make string of ea mode */
 static char* get_ea_mode_str(uint instruction, uint size);
 
-char* get_ea_mode_str_8(uint instruction);
-char* get_ea_mode_str_16(uint instruction);
-char* get_ea_mode_str_32(uint instruction);
-
 /* make string of immediate value */
 static char* get_imm_str_s(uint size);
 static char* get_imm_str_u(uint size);
-
-char* get_imm_str_s8(void);
-char* get_imm_str_s16(void);
-char* get_imm_str_s32(void);
 
 /* Stuff to build the opcode handler jump table */
 static void  build_opcode_table(void);
