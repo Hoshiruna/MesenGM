@@ -82,6 +82,17 @@
 		<DataTemplate DataType="{x:Type sv:PceStatusViewModel}">
 			<sv:PceStatusView />
 		</DataTemplate>
+		<DataTemplate DataType="{x:Type sv:GenesisStatusViewModel}" x:DataType="sv:GenesisStatusViewModel">
+			<ScrollViewer>
+				<ItemsControl ItemsSource="{Binding RegisterRows}" Margin="6">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate x:CompileBindings="False">
+							<TextBlock Text="{Binding}" FontFamily="{DynamicResource MesenMonospaceFont}" />
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</ScrollViewer>
+		</DataTemplate>
 		<DataTemplate DataType="{x:Type sv:SmsStatusViewModel}">
 			<sv:SmsStatusView />
 		</DataTemplate>

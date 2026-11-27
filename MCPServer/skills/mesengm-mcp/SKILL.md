@@ -19,12 +19,12 @@ If tools are unavailable or calls cannot reach Mesen, read [connection.md](refer
 
 - Use `get_screen` to see what the game is currently displaying. It returns the last rendered frame as a PNG image block; the native-resolution default is the most useful for reading tiles and sprites. It shows the frame the video decoder last produced, not a live tilemap decode, so step or resume first if the frame must reflect a memory edit.
 - Start with a small CPU-state, disassembly or memory read that addresses the question. Use `search_memory` for byte-pattern searches instead of dumping entire regions.
-- Distinguish CPU-relative addresses from offsets in physical ROM or RAM regions. On a banked cartridge, the bytes mapped at a CPU address can change. Record the region name and address alongside relevant bytes; a CPU address is not automatically a ROM-file offset.
+- Distinguish CPU-relative addresses from offsets in physical ROM or RAM regions. On a banked cartridge, the bytes mapped at a CPU address can change. For Mega Drive, use `get_address_mapping` to resolve the current ROM or RAM offset. Record the region name and address alongside relevant bytes.
 - Send addresses and identifiers as JSON integers, not strings such as `"$8000"`. Use hexadecimal notation when explaining addresses to the user.
 - Memory transfers are limited to 4096 bytes per call. Check the discovered region size and split larger transfers into valid ranges. Read the returned encoding once; structured content and the JSON text block describe the same result.
-- CPU registers and PPU state are structured for NES, SNES and Game Boy. Other supported CPUs may return only a program counter; do not invent missing registers or PPU support.
+- CPU registers and current video timing are available for NES, SNES, Game Boy, and Mega Drive. Use `get_genesis_vdp_state` for sprite and scroll data from the last submitted Mega Drive frame.
 - Reads while the game runs do not form an atomic snapshot across calls. When a consistent snapshot is needed and execution control is within scope, pause once, confirm `execution_stopped`, then collect the related state.
-- Use bounded trace and event queries. An empty trace does not prove that code never executed. Check the trace configuration in Mesen if needed; this tool set has no trace-configuration tool.
+- Use bounded trace and event queries. To capture a Mega Drive CPU trace, enable recording for that CPU with `set_trace_enabled` and pass its ID to `get_trace_tail`. The rows remain readable after you disable recording.
 
 Read [tool-details.md](references/tool-details.md) for argument names, limits and stepping modes.
 

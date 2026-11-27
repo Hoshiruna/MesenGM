@@ -25,6 +25,8 @@
 #include "GBA/GbaMemoryManager.h"
 #include "WS/WsConsole.h"
 #include "WS/WsMemoryManager.h"
+#include "Genesis/GenesisConsole.h"
+#include "Genesis/GenesisMemoryManager.h"
 #include "Shared/Video/VideoDecoder.h"
 #include "Debugger/DebugTypes.h"
 #include "Debugger/DebugBreakHelper.h"
@@ -56,6 +58,8 @@ MemoryDumper::MemoryDumper(Debugger* debugger)
 		_gbaConsole = gba;
 	} else if(WsConsole* ws = dynamic_cast<WsConsole*>(console)) {
 		_wsConsole = ws;
+	} else if(GenesisConsole* genesis = dynamic_cast<GenesisConsole*>(console)) {
+		_genesisMemory = genesis->GetMemoryManager();
 	}
 
 	for(int i = 0; i < DebugUtilities::GetMemoryTypeCount(); i++) {
@@ -104,6 +108,8 @@ uint32_t MemoryDumper::GetMemorySize(MemoryType type)
 		case MemoryType::SmsMemory: return 0x10000;
 		case MemoryType::GbaMemory: return 0x10000000;
 		case MemoryType::WsMemory: return 0x100000;
+		case MemoryType::GenesisM68KMemory: return 0x1000000;
+		case MemoryType::GenesisZ80Memory: return 0x10000;
 		case MemoryType::SnesRegister: return 0x10000;
 		case MemoryType::SmsPort: return 0x100;
 		case MemoryType::WsPort: return 0x10000;
@@ -234,6 +240,11 @@ void MemoryDumper::GetMemoryState(MemoryType type, uint8_t* buffer)
 			break;
 		}
 
+		case MemoryType::GenesisM68KMemory:
+		case MemoryType::GenesisZ80Memory:
+			GetMemoryValues(type, 0, GetMemorySize(type) - 1, buffer);
+			break;
+
 		default:
 			uint8_t* src = GetMemoryBuffer(type);
 			if(src) {
@@ -261,7 +272,7 @@ void MemoryDumper::InternalSetMemoryValues(MemoryType originalMemoryType, uint32
 		uint8_t value = data[i];
 
 		MemoryType memoryType = originalMemoryType;
-		if(disableSideEffects && DebugUtilities::IsRelativeMemory(memoryType)) {
+		if(DebugUtilities::IsRelativeMemory(memoryType) && (disableSideEffects || memoryType == MemoryType::GenesisM68KMemory || memoryType == MemoryType::GenesisZ80Memory)) {
 			AddressInfo addr = { (int32_t)address, memoryType };
 			addr = _debugger->GetAbsoluteAddress(addr);
 			if(addr.Address < 0) {
@@ -387,6 +398,8 @@ uint8_t MemoryDumper::InternalGetMemoryValue(MemoryType memoryType, uint32_t add
 		case MemoryType::SmsPort: return _smsConsole->GetMemoryManager()->DebugReadPort(address);
 		case MemoryType::GbaMemory: return _gbaConsole->GetMemoryManager()->DebugRead(address);
 		case MemoryType::WsMemory: return _wsConsole->GetMemoryManager()->DebugRead(address);
+		case MemoryType::GenesisM68KMemory: return _genesisMemory->M68KDebugRead(address);
+		case MemoryType::GenesisZ80Memory: return _genesisMemory->Z80DebugRead((uint16_t)address);
 		case MemoryType::WsPort: return _wsConsole->GetMemoryManager()->DebugReadPort<uint8_t>(address);
 
 		default:
@@ -400,6 +413,9 @@ uint16_t MemoryDumper::GetMemoryValue16(MemoryType memoryType, uint32_t address,
 	uint32_t memorySize = GetMemorySize(memoryType);
 	uint8_t lsb = GetMemoryValue(memoryType, address);
 	uint8_t msb = GetMemoryValue(memoryType, address + 1 >= memorySize ? 0 : address + 1);
+	if(memoryType == MemoryType::GenesisM68KMemory) {
+		return (lsb << 8) | msb;
+	}
 	return (msb << 8) | lsb;
 }
 
@@ -410,7 +426,10 @@ uint32_t MemoryDumper::GetMemoryValue32(MemoryType memoryType, uint32_t address,
 	uint8_t b1 = GetMemoryValue(memoryType, address + 1 >= memorySize ? 0 : address + 1);
 	uint8_t b2 = GetMemoryValue(memoryType, address + 2 >= memorySize ? 0 : address + 2);
 	uint8_t b3 = GetMemoryValue(memoryType, address + 3 >= memorySize ? 0 : address + 3);
-	return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+	if(memoryType == MemoryType::GenesisM68KMemory) {
+		return ((uint32_t)b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+	}
+	return ((uint32_t)b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
 }
 
 void MemoryDumper::SetMemoryValue16(MemoryType memoryType, uint32_t address, uint16_t value, bool disableSideEffects)

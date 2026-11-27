@@ -74,6 +74,7 @@ struct GenesisM68KState : public BaseState
 	uint16_t SR;
 	uint32_t SSP;
 	bool Stopped;
+	uint64_t CycleCount;
 };
 
 struct GenesisZ80State : public BaseState
@@ -84,6 +85,7 @@ struct GenesisZ80State : public BaseState
 	uint16_t SP, PC;
 	uint8_t I, R;
 	bool Halted;
+	uint64_t CycleCount;
 };
 
 struct GenesisVdpState : public BaseState
@@ -95,6 +97,18 @@ struct GenesisVdpState : public BaseState
 	bool DisplayEnable;
 	uint8_t Regs[24];
 	uint16_t Cram[64];
+};
+
+struct GenesisVdpTimingState : public BaseState
+{
+	uint32_t FrameCount;
+	uint16_t VCounter;
+	uint16_t HCounter;
+	uint16_t FirstScanline;
+	uint16_t LastScanline;
+	bool VBlank;
+	bool HBlank;
+	bool DisplayEnable;
 };
 
 struct GenesisState : public BaseState

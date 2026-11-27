@@ -173,6 +173,7 @@ public:
 	uint32_t GetVisibleHeight() const { return _region == ConsoleRegion::Pal ? GenesisScreenHeightPal : GenesisScreenHeightNtsc; }
 	uint32_t GetFrameCount() const { return _frameCount; }
 	uint16_t GetVCounter() const { return _state.vcounter; }
+	void GetDebugTimingState(GenesisVdpTimingState& state) const;
 	uint16_t GetHCounter() const { return _state.hcounter; }
 	uint16_t DebugReadCRAM(uint32_t index) const { return index < CRAMSize ? _cram[index] : 0; }
 	uint16_t DebugReadVRAM(uint32_t index) const { return index < VRAMSize ? _vram[index] : 0; }

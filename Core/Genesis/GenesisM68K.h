@@ -41,7 +41,11 @@ public:
 
 	//Register accessors (for debugger / VDP DMA)
 	uint32_t GetPC() const { return _r.pc; }
-	void SetPC(uint32_t pc) { _r.pc = pc; }
+	uint32_t GetInstructionPC() const { return (_r.pc - 4) & 0xFFFFFF; }
+	uint32_t GetPrefetch() const { return ((uint32_t)_r.ir << 16) | _r.irc; }
+	uint32_t GetInterruptReturnSP() const { return _interruptReturnSp; }
+	void SetInstructionPC(uint32_t pc, uint16_t opcode, uint16_t nextWord);
+	uint32_t GetSSP() const { return _r.s ? _r.a[7] : _r.sp; }
 	uint32_t GetDataReg(int i) const { return _r.d[i]; }
 	void SetDataReg(int i, uint32_t v) { _r.d[i] = v; }
 	uint32_t GetAddrReg(int i) const { return _r.a[i]; }
@@ -154,6 +158,7 @@ private:
 	} _r;
 
 	std::function<void()> _instructionTable[65536];
+	uint32_t _interruptReturnSp = 0;
 	uint32_t _cycleAccum = 0; //cycles consumed by current instruction
 	Emulator* _emu = nullptr;
 
@@ -179,6 +184,8 @@ private:
 	void WriteSR(uint16_t sr);
 
 	//--- memory.cpp ---
+	uint16_t ReadBus(uint8_t upper, uint8_t lower, uint32_t address);
+	void WriteBus(uint8_t upper, uint8_t lower, uint32_t address, uint16_t data);
 	template<uint32_t Size> uint32_t Read(uint32_t addr);
 	template<uint32_t Size, bool Order = 0> void Write(uint32_t addr, uint32_t data);
 	template<uint32_t Size> uint32_t Extension();

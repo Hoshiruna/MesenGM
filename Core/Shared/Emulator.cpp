@@ -1162,7 +1162,7 @@ void Emulator::InitDebugger()
 	if(!_debugger) {
 		//Lock to make sure we don't try to start debuggers in 2 separate threads at once
 		auto lock = _debuggerLock.AcquireSafe();
-		if(!_debugger && GetConsoleType() != ConsoleType::Genesis) {
+		if(!_debugger) {
 			BlockDebuggerRequests();
 			ResetDebugger(true);
 			_blockDebuggerRequestCount--;

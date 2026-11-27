@@ -4,6 +4,8 @@
 #include "Debugger/DebugTypes.h"
 #include "Debugger/ExpressionEvaluator.h"
 #include "SNES/SnesConsole.h"
+#include "Genesis/GenesisConsole.h"
+#include "Genesis/GenesisVdp.h"
 #include "Debugger/Debugger.h"
 #include "Debugger/IDebugger.h"
 #include "Debugger/MemoryDumper.h"
@@ -11,6 +13,101 @@
 #include "Debugger/LabelManager.h"
 #include "Debugger/DebugUtilities.h"
 #include "Utilities/HexUtilities.h"
+
+namespace
+{
+	unordered_map<string, int64_t> GenesisM68KTokens {
+		{ "d0", EvalValues::R0 },
+		{ "a0", EvalValues::R8 },
+		{ "d1", EvalValues::R1 },
+		{ "a1", EvalValues::R9 },
+		{ "d2", EvalValues::R2 },
+		{ "a2", EvalValues::R10 },
+		{ "d3", EvalValues::R3 },
+		{ "a3", EvalValues::R11 },
+		{ "d4", EvalValues::R4 },
+		{ "a4", EvalValues::R12 },
+		{ "d5", EvalValues::R5 },
+		{ "a5", EvalValues::R13 },
+		{ "d6", EvalValues::R6 },
+		{ "a6", EvalValues::R14 },
+		{ "d7", EvalValues::R7 },
+		{ "a7", EvalValues::R15 },
+		{ "sr", EvalValues::RegSR },
+		{ "sp", EvalValues::RegSP },
+		{ "pc", EvalValues::RegPC },
+		{ "frame", EvalValues::PpuFrameCount },
+		{ "cycle", EvalValues::PpuCycle },
+		{ "scanline", EvalValues::PpuScanline },
+	};
+
+	unordered_map<string, int64_t> GenesisZ80Tokens {
+		{ "a", EvalValues::RegA },
+		{ "b", EvalValues::RegB },
+		{ "c", EvalValues::RegC },
+		{ "d", EvalValues::RegD },
+		{ "e", EvalValues::RegE },
+		{ "f", EvalValues::RegF },
+		{ "h", EvalValues::RegH },
+		{ "l", EvalValues::RegL },
+		{ "af", EvalValues::RegAF },
+		{ "bc", EvalValues::RegBC },
+		{ "de", EvalValues::RegDE },
+		{ "hl", EvalValues::RegHL },
+		{ "i", EvalValues::RegI },
+		{ "r", EvalValues::RegR },
+		{ "ix", EvalValues::RegIX },
+		{ "iy", EvalValues::RegIY },
+		{ "sp", EvalValues::RegSP },
+		{ "pc", EvalValues::RegPC },
+		{ "frame", EvalValues::PpuFrameCount },
+		{ "cycle", EvalValues::PpuCycle },
+		{ "scanline", EvalValues::PpuScanline },
+	};
+
+	int64_t GetGenesisToken(IDebugger* debugger, GenesisConsole* console, CpuType cpuType, int64_t token)
+	{
+		switch(token) {
+			case EvalValues::RegPC: return debugger->GetProgramCounter(true);
+			case EvalValues::PpuFrameCount: return console->GetVdp()->GetFrameCount();
+			case EvalValues::PpuCycle: return console->GetVdp()->GetHCounter();
+			case EvalValues::PpuScanline: return console->GetVdp()->GetVCounter();
+		}
+
+		if(cpuType == CpuType::GenesisM68K) {
+			auto& registers = static_cast<GenesisM68KState&>(debugger->GetState());
+			if(token >= EvalValues::R0 && token <= EvalValues::R7) {
+				return registers.D[token - EvalValues::R0];
+			}
+			if(token >= EvalValues::R8 && token <= EvalValues::R15) {
+				return registers.A[token - EvalValues::R8];
+			}
+			return token == EvalValues::RegSR ? registers.SR : registers.A[7];
+		}
+
+		auto& registers = static_cast<GenesisZ80State&>(debugger->GetState());
+		switch(token) {
+			case EvalValues::RegA: return registers.A;
+			case EvalValues::RegB: return registers.B;
+			case EvalValues::RegC: return registers.C;
+			case EvalValues::RegD: return registers.D;
+			case EvalValues::RegE: return registers.E;
+			case EvalValues::RegF: return registers.Flags;
+			case EvalValues::RegH: return registers.H;
+			case EvalValues::RegL: return registers.L;
+			case EvalValues::RegAF: return (registers.A << 8) | registers.Flags;
+			case EvalValues::RegBC: return (registers.B << 8) | registers.C;
+			case EvalValues::RegDE: return (registers.D << 8) | registers.E;
+			case EvalValues::RegHL: return (registers.H << 8) | registers.L;
+			case EvalValues::RegI: return registers.I;
+			case EvalValues::RegR: return registers.R;
+			case EvalValues::RegIX: return registers.IX;
+			case EvalValues::RegIY: return registers.IY;
+			case EvalValues::RegSP: return registers.SP;
+			default: return 0;
+		}
+	}
+}
 
 const vector<string> ExpressionEvaluator::_binaryOperators = { { "*", "/", "%", "+", "-", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "&", "^", "|", "&&", "||" } };
 const vector<int> ExpressionEvaluator::_binaryPrecedence = { { 10, 10, 10, 9, 9, 8, 8, 7, 7, 7, 7, 6, 6, 5, 4, 3, 2, 1 } };
@@ -72,6 +169,8 @@ unordered_map<string, int64_t>* ExpressionEvaluator::GetAvailableTokens()
 		case CpuType::Sms: return &GetSmsTokens();
 		case CpuType::Gba: return &GetGbaTokens();
 		case CpuType::Ws: return &GetWsTokens();
+		case CpuType::GenesisM68K: return &GenesisM68KTokens;
+		case CpuType::GenesisZ80: return &GenesisZ80Tokens;
 	}
 
 	return nullptr;
@@ -428,6 +527,8 @@ int64_t ExpressionEvaluator::Evaluate(ExpressionData& data, EvalResultType& resu
 								case CpuType::Sms: token = GetSmsTokenValue(token, resultType); break;
 								case CpuType::Gba: token = GetGbaTokenValue(token, resultType); break;
 								case CpuType::Ws: token = GetWsTokenValue(token, resultType); break;
+								case CpuType::GenesisM68K:
+								case CpuType::GenesisZ80: token = GetGenesisToken(_cpuDebugger, static_cast<GenesisConsole*>(_debugger->GetConsole()), _cpuType, token); break;
 							}
 						}
 						break;

@@ -2595,6 +2595,12 @@
     <ClInclude Include="NES\Mappers\Nintendo\FnsMmc1.h">
       <Filter>NES\Mappers\Nintendo</Filter>
     </ClInclude>
+    <ClInclude Include="Genesis\Debugger\GenesisDebugger.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
+    <ClInclude Include="Genesis\Debugger\GenesisDisUtils.h">
+      <Filter>Genesis</Filter>
+    </ClInclude>
     <ClInclude Include="Genesis\GenesisConsole.h">
       <Filter>Genesis</Filter>
     </ClInclude>
@@ -3184,6 +3190,12 @@
     </ClCompile>
     <ClCompile Include="Shared\Video\SoftwareRenderer.cpp">
       <Filter>Shared\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\Debugger\GenesisDebugger.cpp">
+      <Filter>Genesis</Filter>
+    </ClCompile>
+    <ClCompile Include="Genesis\Debugger\GenesisM68KDisassembler.cpp">
+      <Filter>Genesis</Filter>
     </ClCompile>
     <ClCompile Include="Genesis\GenesisConsole.cpp">
       <Filter>Genesis</Filter>

@@ -19,11 +19,6 @@ namespace Mesen.Interop
 			};
 		}
 
-		public static bool SupportsDebugger(this ConsoleType type)
-		{
-			return type != ConsoleType.Genesis;
-		}
-
 		public static bool SupportsCheats(this ConsoleType type)
 		{
 			return type switch {

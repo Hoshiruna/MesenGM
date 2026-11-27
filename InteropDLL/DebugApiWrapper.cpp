@@ -113,6 +113,25 @@ extern "C"
 		WithToolVoid(GetTraceLogger(type), SetOptions(options));
 	}
 
+	DllExport bool __stdcall SetTraceEnabled(CpuType cpuType, bool enabled)
+	{
+		return WrapDebuggerCall<bool>([&](Debugger* dbg) {
+			if(!dbg->HasCpuType(cpuType)) {
+				return false;
+			}
+			if(auto* logger = dbg->GetTraceLogger(cpuType)) {
+				logger->SetEnabled(enabled);
+				return true;
+			}
+			return false;
+		});
+	}
+
+	DllExport uint32_t __stdcall GetCpuExecutionTrace(CpuType cpuType, TraceRow output[], uint32_t startOffset, uint32_t lineCount)
+	{
+		return WithDebugger(uint32_t, GetCpuExecutionTrace(cpuType, output, startOffset, lineCount));
+	}
+
 	DllExport uint32_t __stdcall GetExecutionTrace(TraceRow output[], uint32_t startOffset, uint32_t lineCount)
 	{
 		return WithDebugger(uint32_t, GetExecutionTrace(output, startOffset, lineCount));

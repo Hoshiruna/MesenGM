@@ -40,6 +40,9 @@
 #include "PCE/Debugger/PceDebugger.h"
 #include "PCE/PceTypes.h"
 #include "SMS/Debugger/SmsDebugger.h"
+#include "Genesis/Debugger/GenesisDebugger.h"
+#include "Genesis/GenesisConsole.h"
+#include "Genesis/GenesisVdp.h"
 #include "SMS/SmsTypes.h"
 #include "GBA/Debugger/GbaDebugger.h"
 #include "GBA/GbaTypes.h"
@@ -97,6 +100,8 @@ Debugger::Debugger(Emulator* emu, IConsole* console)
 			case CpuType::Sms: debugger.reset(new SmsDebugger(this)); break;
 			case CpuType::Gba: debugger.reset(new GbaDebugger(this)); break;
 			case CpuType::Ws: debugger.reset(new WsDebugger(this)); break;
+			case CpuType::GenesisM68K:
+			case CpuType::GenesisZ80: debugger.reset(new GenesisDebugger(this, type)); break;
 			default: throw std::runtime_error("Unsupported CPU type");
 		}
 
@@ -188,6 +193,8 @@ uint64_t Debugger::GetCpuCycleCount()
 		case CpuType::Nes: return GetDebugger<type, NesDebugger>()->GetCpuCycleCount();
 		case CpuType::Pce: return GetDebugger<type, PceDebugger>()->GetCpuCycleCount();
 		case CpuType::Sms: return GetDebugger<type, SmsDebugger>()->GetCpuCycleCount();
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: return GetDebugger<type, GenesisDebugger>()->GetCpuCycleCount(false);
 		case CpuType::Gba: return GetDebugger<type, GbaDebugger>()->GetCpuCycleCount();
 		case CpuType::Ws: return GetDebugger<type, WsDebugger>()->GetCpuCycleCount();
 		default: return 0; break;
@@ -238,6 +245,8 @@ void Debugger::ProcessInstruction()
 		case CpuType::Sms: GetDebugger<type, SmsDebugger>()->ProcessInstruction(); break;
 		case CpuType::Gba: GetDebugger<type, GbaDebugger>()->ProcessInstruction(); break;
 		case CpuType::Ws: GetDebugger<type, WsDebugger>()->ProcessInstruction(); break;
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: GetDebugger<type, GenesisDebugger>()->ProcessInstruction(); break;
 	}
 
 	debugger->AllowChangeProgramCounter = false;
@@ -270,6 +279,8 @@ void Debugger::ProcessMemoryRead(uint32_t addr, T& value, MemoryOperationType op
 		case CpuType::Nes: GetDebugger<CpuType::Nes, NesDebugger>()->ProcessRead(addr, value, opType); break;
 		case CpuType::Pce: GetDebugger<CpuType::Pce, PceDebugger>()->ProcessRead(addr, value, opType); break;
 		case CpuType::Sms: GetDebugger<CpuType::Sms, SmsDebugger>()->ProcessRead(addr, value, opType); break;
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: GetDebugger<type, GenesisDebugger>()->ProcessMemory(addr, (uint8_t)value, opType); break;
 		case CpuType::Gba: GetDebugger<CpuType::Gba, GbaDebugger>()->ProcessRead<accessWidth>(addr, value, opType); break;
 		case CpuType::Ws:
 			if constexpr(accessWidth <= 2) {
@@ -303,6 +314,8 @@ bool Debugger::ProcessMemoryWrite(uint32_t addr, T& value, MemoryOperationType o
 		case CpuType::Nes: GetDebugger<CpuType::Nes, NesDebugger>()->ProcessWrite(addr, value, opType); break;
 		case CpuType::Pce: GetDebugger<CpuType::Pce, PceDebugger>()->ProcessWrite(addr, value, opType); break;
 		case CpuType::Sms: GetDebugger<CpuType::Sms, SmsDebugger>()->ProcessWrite(addr, value, opType); break;
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: GetDebugger<type, GenesisDebugger>()->ProcessMemory(addr, (uint8_t)value, opType); break;
 		case CpuType::Gba: GetDebugger<CpuType::Gba, GbaDebugger>()->ProcessWrite<accessWidth>(addr, value, opType); break;
 		case CpuType::Ws:
 			if constexpr(accessWidth <= 2) {
@@ -459,6 +472,14 @@ void Debugger::ProcessPpuCycle()
 		case CpuType::Nes: GetDebugger<type, NesDebugger>()->ProcessPpuCycle(); break;
 		case CpuType::Pce: GetDebugger<type, PceDebugger>()->ProcessPpuCycle(); break;
 		case CpuType::Sms: GetDebugger<type, SmsDebugger>()->ProcessPpuCycle(); break;
+		case CpuType::GenesisM68K: {
+			auto* vdp = static_cast<GenesisConsole*>(_console)->GetVdp();
+			for(CpuType cpu : { CpuType::GenesisM68K, CpuType::GenesisZ80 }) {
+				auto* debugger = static_cast<GenesisDebugger*>(GetCpuDebugger(cpu));
+				debugger->ProcessVdpCycle(vdp->GetHCounter(), vdp->GetVCounter());
+			}
+			break;
+		}
 		case CpuType::Gba: GetDebugger<type, GbaDebugger>()->ProcessPpuCycle(); break;
 		case CpuType::Ws: GetDebugger<type, WsDebugger>()->ProcessPpuCycle(); break;
 		default: throw std::runtime_error("Invalid cpu type");
@@ -579,7 +600,9 @@ void Debugger::ProcessInterrupt(uint32_t originalPc, uint32_t currentPc, bool fo
 void Debugger::InternalProcessInterrupt(CpuType cpuType, IDebugger& dbg, StepRequest& stepRequest, AddressInfo& src, uint32_t srcAddr, AddressInfo& dest, uint32_t destAddr, AddressInfo& ret, uint32_t retAddr, uint32_t retSp, bool forNmi)
 {
 	dbg.GetCallstackManager()->Push(src, srcAddr, dest, destAddr, ret, retAddr, retSp, forNmi ? StackFrameFlags::Nmi : StackFrameFlags::Irq);
-	dbg.GetEventManager()->AddEvent(forNmi ? DebugEventType::Nmi : DebugEventType::Irq);
+	if(auto* events = dbg.GetEventManager()) {
+		events->AddEvent(forNmi ? DebugEventType::Nmi : DebugEventType::Irq);
+	}
 	stepRequest.ProcessNmiIrq(forNmi);
 }
 
@@ -596,6 +619,9 @@ void Debugger::ProcessEvent(EventType type, std::optional<CpuType> cpuTypeOpt)
 			break;
 
 		case EventType::StartFrame: {
+			if(evtCpuType == CpuType::GenesisM68K || evtCpuType == CpuType::GenesisZ80) {
+				static_cast<GenesisDebugger*>(GetCpuDebugger(evtCpuType))->ProcessFrame();
+			}
 			if(!_emu->IsDebuggerBlocked()) {
 				_emu->GetNotificationManager()->SendNotification(ConsoleNotificationType::EventViewerRefresh, (void*)evtCpuType);
 			}
@@ -724,6 +750,7 @@ void Debugger::PauseOnNextFrame()
 		case CpuType::Sms: Step(CpuType::Sms, 240, StepType::SpecificScanline, BreakSource::PpuStep); break;
 		case CpuType::Gba: Step(CpuType::Gba, 160, StepType::SpecificScanline, BreakSource::PpuStep); break;
 		case CpuType::Ws: Step(CpuType::Ws, 145, StepType::SpecificScanline, BreakSource::PpuStep); break;
+		case CpuType::GenesisM68K: Step(CpuType::GenesisM68K, 1, StepType::PpuFrame, BreakSource::PpuStep); break;
 	}
 }
 
@@ -813,6 +840,8 @@ bool Debugger::IsDebugWindowOpened(CpuType cpuType)
 		case CpuType::Sms: return _settings->CheckDebuggerFlag(DebuggerFlags::SmsDebuggerEnabled);
 		case CpuType::Gba: return _settings->CheckDebuggerFlag(DebuggerFlags::GbaDebuggerEnabled);
 		case CpuType::Ws: return _settings->CheckDebuggerFlag(DebuggerFlags::WsDebuggerEnabled);
+		case CpuType::GenesisM68K: return _settings->CheckDebuggerFlag(DebuggerFlags::GenesisM68KDebuggerEnabled);
+		case CpuType::GenesisZ80: return _settings->CheckDebuggerFlag(DebuggerFlags::GenesisZ80DebuggerEnabled);
 	}
 
 	return false;
@@ -870,6 +899,8 @@ void Debugger::GetCpuState(BaseState& dstState, CpuType cpuType)
 		case CpuType::Sms: memcpy(&dstState, &srcState, sizeof(SmsCpuState)); break;
 		case CpuType::Gba: memcpy(&dstState, &srcState, sizeof(GbaCpuState)); break;
 		case CpuType::Ws: memcpy(&dstState, &srcState, sizeof(WsCpuState)); break;
+		case CpuType::GenesisM68K: memcpy(&dstState, &srcState, sizeof(GenesisM68KState)); break;
+		case CpuType::GenesisZ80: memcpy(&dstState, &srcState, sizeof(GenesisZ80State)); break;
 	}
 }
 
@@ -948,6 +979,13 @@ void Debugger::GetPpuState(BaseState& state, CpuType cpuType)
 
 		case CpuType::Ws: {
 			GetDebugger<CpuType::Ws, WsDebugger>()->GetPpuState(state);
+			break;
+		}
+
+		case CpuType::GenesisM68K:
+		case CpuType::GenesisZ80: {
+			DebugBreakHelper helper(this);
+			static_cast<GenesisConsole*>(_console)->GetVdp()->GetDebugTimingState(static_cast<GenesisVdpTimingState&>(state));
 			break;
 		}
 	}
@@ -1188,6 +1226,26 @@ uint32_t Debugger::GetExecutionTrace(TraceRow output[], uint32_t startOffset, ui
 	return count;
 }
 
+uint32_t Debugger::GetCpuExecutionTrace(CpuType cpuType, TraceRow output[], uint32_t startOffset, uint32_t maxLineCount)
+{
+	if(!HasCpuType(cpuType)) {
+		return 0;
+	}
+	DebugBreakHelper helper(this);
+	ITraceLogger* logger = GetTraceLogger(cpuType);
+	if(!logger) {
+		return 0;
+	}
+
+	uint32_t count = 0;
+	while(count < maxLineCount && logger->GetRowId(startOffset) >= 0) {
+		logger->GetExecutionTrace(output[count], startOffset);
+		count++;
+		startOffset++;
+	}
+	return count;
+}
+
 PpuTools* Debugger::GetPpuTools(CpuType cpuType)
 {
 	if(_debuggers[(int)cpuType].Debugger) {
@@ -1231,6 +1289,8 @@ template void Debugger::ProcessInstruction<CpuType::Gameboy>();
 template void Debugger::ProcessInstruction<CpuType::Nes>();
 template void Debugger::ProcessInstruction<CpuType::Pce>();
 template void Debugger::ProcessInstruction<CpuType::Sms>();
+template void Debugger::ProcessInstruction<CpuType::GenesisM68K>();
+template void Debugger::ProcessInstruction<CpuType::GenesisZ80>();
 template void Debugger::ProcessInstruction<CpuType::Gba>();
 template void Debugger::ProcessInstruction<CpuType::Ws>();
 
@@ -1248,6 +1308,8 @@ template void Debugger::ProcessMemoryRead<CpuType::Gameboy>(uint32_t addr, uint8
 template void Debugger::ProcessMemoryRead<CpuType::Nes>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template void Debugger::ProcessMemoryRead<CpuType::Pce>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template void Debugger::ProcessMemoryRead<CpuType::Sms>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
+template void Debugger::ProcessMemoryRead<CpuType::GenesisM68K>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
+template void Debugger::ProcessMemoryRead<CpuType::GenesisZ80>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template void Debugger::ProcessMemoryRead<CpuType::Gba, 1>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
 template void Debugger::ProcessMemoryRead<CpuType::Gba, 2>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
 template void Debugger::ProcessMemoryRead<CpuType::Gba, 4>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
@@ -1267,6 +1329,8 @@ template bool Debugger::ProcessMemoryWrite<CpuType::Gameboy>(uint32_t addr, uint
 template bool Debugger::ProcessMemoryWrite<CpuType::Nes>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template bool Debugger::ProcessMemoryWrite<CpuType::Pce>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template bool Debugger::ProcessMemoryWrite<CpuType::Sms>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
+template bool Debugger::ProcessMemoryWrite<CpuType::GenesisM68K>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
+template bool Debugger::ProcessMemoryWrite<CpuType::GenesisZ80>(uint32_t addr, uint8_t& value, MemoryOperationType opType);
 template bool Debugger::ProcessMemoryWrite<CpuType::Gba, 1>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
 template bool Debugger::ProcessMemoryWrite<CpuType::Gba, 2>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
 template bool Debugger::ProcessMemoryWrite<CpuType::Gba, 4>(uint32_t addr, uint32_t& value, MemoryOperationType opType);
@@ -1301,6 +1365,8 @@ template void Debugger::ProcessHaltedCpu<CpuType::Spc>();
 template void Debugger::ProcessHaltedCpu<CpuType::Sa1>();
 template void Debugger::ProcessHaltedCpu<CpuType::Gameboy>();
 template void Debugger::ProcessHaltedCpu<CpuType::Sms>();
+template void Debugger::ProcessHaltedCpu<CpuType::GenesisM68K>();
+template void Debugger::ProcessHaltedCpu<CpuType::GenesisZ80>();
 template void Debugger::ProcessHaltedCpu<CpuType::Gba>();
 template void Debugger::ProcessHaltedCpu<CpuType::Ws>();
 
@@ -1310,6 +1376,8 @@ template void Debugger::ProcessInterrupt<CpuType::Gameboy>(uint32_t originalPc, 
 template void Debugger::ProcessInterrupt<CpuType::Nes>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
 template void Debugger::ProcessInterrupt<CpuType::Pce>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
 template void Debugger::ProcessInterrupt<CpuType::Sms>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
+template void Debugger::ProcessInterrupt<CpuType::GenesisM68K>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
+template void Debugger::ProcessInterrupt<CpuType::GenesisZ80>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
 template void Debugger::ProcessInterrupt<CpuType::Gba>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
 template void Debugger::ProcessInterrupt<CpuType::Ws>(uint32_t originalPc, uint32_t currentPc, bool forNmi);
 
@@ -1332,6 +1400,7 @@ template void Debugger::ProcessPpuCycle<CpuType::Gameboy>();
 template void Debugger::ProcessPpuCycle<CpuType::Nes>();
 template void Debugger::ProcessPpuCycle<CpuType::Pce>();
 template void Debugger::ProcessPpuCycle<CpuType::Sms>();
+template void Debugger::ProcessPpuCycle<CpuType::GenesisM68K>();
 template void Debugger::ProcessPpuCycle<CpuType::Gba>();
 template void Debugger::ProcessPpuCycle<CpuType::Ws>();
 

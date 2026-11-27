@@ -116,6 +116,8 @@
     <ClInclude Include="SMS\Input\SmsController.h" />
     <ClInclude Include="SMS\Input\SmsLightPhaser.h" />
     <ClInclude Include="SMS\SmsBiosMapper.h" />
+    <ClInclude Include="Genesis\Debugger\GenesisDebugger.h" />
+    <ClInclude Include="Genesis\Debugger\GenesisDisUtils.h" />
     <ClInclude Include="Genesis\GenesisConsole.h" />
     <ClInclude Include="Genesis\GenesisControlManager.h" />
     <ClInclude Include="Genesis\GenesisDefaultVideoFilter.h" />
@@ -976,6 +978,8 @@
     <ClCompile Include="SMS\Debugger\SmsTraceLogger.cpp" />
     <ClCompile Include="SMS\Debugger\SmsVdpTools.cpp" />
     <ClCompile Include="SMS\SmsBiosMapper.cpp" />
+    <ClCompile Include="Genesis\Debugger\GenesisDebugger.cpp" />
+    <ClCompile Include="Genesis\Debugger\GenesisM68KDisassembler.cpp" />
     <ClCompile Include="Genesis\GenesisConsole.cpp" />
     <ClCompile Include="Genesis\GenesisControlManager.cpp" />
     <ClCompile Include="Genesis\GenesisEeprom.cpp" />

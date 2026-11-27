@@ -6,15 +6,18 @@ Check the live tool schema first. These details reflect `McpDebugService.cs` in 
 
 | Tool | Arguments and limits |
 | --- | --- |
-| `get_rom_info` | No arguments. Returns ROM identity, CPU IDs, memory region IDs/names/sizes. |
+| `get_rom_info` | No arguments. Returns ROM identity, CPU IDs with their relative `memory_type`, and memory region IDs, names, and sizes. |
 | `debugger_status` | No arguments. Includes `debugger_running`, `emulation_running`, `execution_stopped`, `emulation_paused`. |
 | `get_cpu_state` | Optional `cpu_type`; defaults to the loaded system's main CPU. |
-| `get_ppu_state` | Optional `cpu_type`; structured PPU state for NES, SNES and Game Boy. |
+| `get_ppu_state` | Optional `cpu_type`. Returns current video timing for NES, SNES, Game Boy, or Mega Drive. On Mega Drive, `scanline` and `cycle` are raw VDP counters. `first_scanline` and `last_scanline` describe the current vertical counter range, which can wrap through zero. |
 | `get_genesis_vdp_state` | Mega Drive only. Reads the last submitted frame's VDP counters, SAT, and sprite cache. Optional `sprite_offset` (0-79), `sprite_count` (0-80, default 20), and `scanline` (0-239). The requested line includes `mapping_fetches` and `hscroll_fetch` (scroll table addresses and words at fetch time and frame end). Set `include_hscroll_writes: true` with `scanline` for changes to the fetched words in commit order. Use `sprite_count: 0` to omit SAT rows. Check `frame_count` when comparing calls. |
 | `get_screen` | Optional `apply_video_filter` (default false) and `include_base64` (default false). Returns the last rendered frame as an `image/png` content block plus `width`, `height`, `byte_length`, `frame_count`, `emulation_paused`. Fails until at least one frame has been rendered. |
 | `get_disassembly` | Optional `cpu_type`, `address`, `line_count` (1-100, default 20). Omitting `address` centers on the current PC. |
-| `get_trace_tail` | `count` (1-1000, default 100), `offset` (default 0, measured from the newest entry). No `cpu_type` argument. |
-| `get_debug_events` | Optional `cpu_type`, `max_count` (1-1000, default 100). Returns event type, PC, scanline, cycle and breakpoint ID. |
+| `get_address_mapping` | Mega Drive only. Required `address`, optional `cpu_type` (default 68000) and `memory_type` (default the CPU bus). A physical `memory_type` reverses the lookup. Returns one current mapping or `mapping: null`. |
+| `get_callstack` | Optional `cpu_type` and `max_count` (1-512, default 64). Returns the newest tracked frames in call order, with the innermost frame last. |
+| `set_trace_enabled` | Required `enabled`, optional `cpu_type`. Toggles recording for one CPU and keeps its recorded rows. |
+| `get_trace_tail` | `count` (1-1000, default 100) and `offset` (default 0, measured from the newest entry). Pass `cpu_type` for that CPU's buffer, including retained rows after disabling trace. Omit it for the combined trace of enabled CPUs. Each row includes its CPU ID. |
+| `get_debug_events` | Optional `cpu_type`, `max_count` (1-1000, default 100). Returns event type, PC, scanline, cycle and breakpoint ID for CPUs with an event log. On Mega Drive use the CPU trace or the VDP snapshot. |
 
 ## Memory
 
@@ -33,11 +36,13 @@ Check the live tool schema first. These details reflect `McpDebugService.cs` in 
 - `enabled`: defaults to true.
 - `condition`: debugger expression; must fit within 999 UTF-8 bytes. Use this project's debugger expression syntax rather than guessing a programming-language expression.
 
+On Mega Drive, use the selected CPU's bus or a physical cartridge or RAM region. To watch VDP port accesses, use a CPU bus breakpoint.
+
 The call replaces all breakpoints. IDs are assigned from array indices. It does not return the previous list.
 
 ## Execution
 
-`step` accepts optional `cpu_type`, `count` (0-1000000, default 1), and `step_type` (default 0). The meaning of `count` depends on the selected mode, so use a positive count for ordinary instruction stepping. CPU support is checked by the handler.
+`step` accepts optional `cpu_type`, `count` (0-1000000, default 1), and `step_type` (default 0). The meaning of `count` depends on the selected mode, so use a positive count for ordinary instruction stepping. On Mega Drive, `CpuCycleStep`, `RunToNmi`, and `StepBack` are unavailable. For `SpecificScanline`, pass a raw vertical counter value in the range reported by `get_ppu_state`.
 
 | ID | Mode |
 | --- | --- |

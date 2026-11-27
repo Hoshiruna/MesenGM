@@ -1838,6 +1838,7 @@
 		</Form>
 	</Forms>
 	<Messages>
+		<Message ID="OpenGenesisZ80Debugger">Z80 Debugger</Message>
 		<Message ID="GenesisViewerWaitingForFrame">Waiting for a completed frame…</Message>
 		<Message ID="GenesisTileViewerFrame">Frame {0} · VRAM {1} KiB · 8×{2} tiles</Message>
 		<Message ID="GenesisPaletteViewerFrame">Frame {0} · CRAM</Message>
@@ -2927,10 +2928,18 @@ E
 			<Value ID="Sms">SMS</Value>
 			<Value ID="Gba">GBA</Value>
 			<Value ID="Ws">WS</Value>
+			<Value ID="GenesisM68K">68000</Value>
+			<Value ID="GenesisZ80">Z80</Value>
 		</Enum>
 		
 		<Enum ID="MemoryType">
+			<Value ID="GenesisM68KMemory">68000 Bus</Value>
+			<Value ID="GenesisZ80Memory">Z80 Bus</Value>
 			<Value ID="GenesisVdpVram">VRAM</Value>
+			<Value ID="GenesisM68KRam">68000 RAM</Value>
+			<Value ID="GenesisZ80Ram">Z80 RAM</Value>
+			<Value ID="GenesisCartridgeRom">Cartridge ROM</Value>
+			<Value ID="GenesisCartridgeRam">Save Memory</Value>
 			<Value ID="SnesMemory">CPU Memory</Value>
 			<Value ID="SpcMemory">SPC Memory</Value>
 			<Value ID="Sa1Memory">SA-1 Memory</Value>

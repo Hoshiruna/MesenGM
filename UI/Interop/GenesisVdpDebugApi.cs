@@ -134,6 +134,19 @@ namespace Mesen.Interop
 	}
 
 	[StructLayout(LayoutKind.Sequential)]
+	public struct GenesisVdpTimingState : BaseState
+	{
+		public uint FrameCount;
+		public ushort VCounter;
+		public ushort HCounter;
+		public ushort FirstScanline;
+		public ushort LastScanline;
+		[MarshalAs(UnmanagedType.I1)] public bool VBlank;
+		[MarshalAs(UnmanagedType.I1)] public bool HBlank;
+		[MarshalAs(UnmanagedType.I1)] public bool DisplayEnable;
+	}
+
+	[StructLayout(LayoutKind.Sequential)]
 	internal struct GenesisVdpDebugState
 	{
 		public uint FrameCount, Width, Height, VCounter, HCounter;

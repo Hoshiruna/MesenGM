@@ -118,7 +118,7 @@ namespace Mesen.Debugger.Utilities
 				},
 				["serverInfo"] = new JsonObject {
 					["name"] = ServerName,
-					["version"] = "1.3.0"
+					["version"] = "1.4.0"
 				},
 				["instructions"] = "Use get_rom_info first to discover the loaded system, CPU type identifiers, and memory region identifiers."
 			});
@@ -141,7 +141,7 @@ namespace Mesen.Debugger.Utilities
 				),
 				(JsonNode)MakeToolDef(
 					"get_cpu_state",
-					"Get CPU registers. SNES, NES, and Game Boy return structured register sets; other supported CPUs return the program counter.",
+					"Read CPU registers for SNES, NES, Game Boy, or Mega Drive. Other CPUs return the program counter.",
 					new JsonObject {
 						["type"] = "object",
 						["properties"] = new JsonObject {
@@ -152,7 +152,7 @@ namespace Mesen.Debugger.Utilities
 				),
 				(JsonNode)MakeToolDef(
 					"get_ppu_state",
-					"Get scanline, cycle, and frame state for the SNES, NES, or Game Boy graphics processor.",
+					"Read current video timing for SNES, NES, Game Boy, or Mega Drive. On Mega Drive, scanline and cycle are raw VDP counters.",
 					new JsonObject {
 						["type"] = "object",
 						["properties"] = new JsonObject {
@@ -258,20 +258,61 @@ namespace Mesen.Debugger.Utilities
 					readOnly: true
 				),
 				(JsonNode)MakeToolDef(
-					"get_trace_tail",
-					"Get recent execution trace rows.",
+					"get_address_mapping",
+					"Translate a Mega Drive CPU address to its current ROM or RAM offset. Pass a physical memory_type to translate in the other direction.",
+					new JsonObject {
+						["type"] = "object",
+						["required"] = StringArray("address"),
+						["properties"] = new JsonObject {
+							["cpu_type"] = IntegerProperty("CPU type identifier. Defaults to the 68000."),
+							["memory_type"] = IntegerProperty("Source memory type. Defaults to the selected CPU bus."),
+							["address"] = IntegerProperty("Source address or physical offset.", minimum: 0)
+						}
+					},
+					readOnly: true
+				),
+				(JsonNode)MakeToolDef(
+					"get_callstack",
+					"Read the selected CPU's tracked calls and interrupts.",
 					new JsonObject {
 						["type"] = "object",
 						["properties"] = new JsonObject {
+							["cpu_type"] = IntegerProperty("CPU type identifier. Defaults to the main CPU."),
+							["max_count"] = IntegerProperty("Maximum frames to return, keeping the newest.", minimum: 1, maximum: DebugApi.CallstackBufferSize, defaultValue: 64)
+						}
+					},
+					readOnly: true
+				),
+				(JsonNode)MakeToolDef(
+					"set_trace_enabled",
+					"Enable or disable execution tracing for one CPU. Recorded rows are retained.",
+					new JsonObject {
+						["type"] = "object",
+						["required"] = StringArray("enabled"),
+						["properties"] = new JsonObject {
+							["cpu_type"] = IntegerProperty("CPU type identifier. Defaults to the main CPU."),
+							["enabled"] = new JsonObject { ["type"] = "boolean" }
+						}
+					},
+					readOnly: false,
+					idempotent: true
+				),
+				(JsonNode)MakeToolDef(
+					"get_trace_tail",
+					"Read recent execution trace rows. Select a CPU to read its buffer, including rows recorded before tracing was disabled.",
+					new JsonObject {
+						["type"] = "object",
+						["properties"] = new JsonObject {
+							["cpu_type"] = IntegerProperty("CPU type identifier. Omit it to read the combined trace of enabled CPUs."),
 							["count"] = IntegerProperty("Maximum rows to return.", minimum: 1, maximum: MaxTraceRows, defaultValue: 100),
-							["offset"] = IntegerProperty("Row offset from the newest trace entry.", minimum: 0, defaultValue: 0)
+							["offset"] = IntegerProperty("Row offset from the newest entry in the selected trace.", minimum: 0, defaultValue: 0)
 						}
 					},
 					readOnly: true
 				),
 				(JsonNode)MakeToolDef(
 					"get_debug_events",
-					"Get recent debugger events for one CPU.",
+					"Get recent debugger events for one CPU when an event log is available.",
 					new JsonObject {
 						["type"] = "object",
 						["properties"] = new JsonObject {
@@ -357,9 +398,6 @@ namespace Mesen.Debugger.Utilities
 
 			try {
 				RomInfo romInfo = EnsureRomLoaded();
-				if(!romInfo.ConsoleType.SupportsDebugger() && toolName is not ("debugger_status" or "get_rom_info" or "get_screen" or "get_genesis_vdp_state")) {
-					return ToolError(id, "This tool is unavailable on Mega Drive. Use get_genesis_vdp_state to inspect the VDP.");
-				}
 				return toolName switch {
 					"debugger_status" => ToolSuccess(id, GetDebuggerStatus()),
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),
@@ -371,6 +409,9 @@ namespace Mesen.Debugger.Utilities
 					"search_memory" => ToolSuccess(id, SearchMemory(arguments)),
 					"set_memory" => ToolSuccess(id, SetMemory(arguments)),
 					"get_disassembly" => ToolSuccess(id, GetDisassembly(arguments)),
+					"get_address_mapping" => ToolSuccess(id, GetAddressMapping(arguments)),
+					"get_callstack" => ToolSuccess(id, GetCallstack(arguments)),
+					"set_trace_enabled" => ToolSuccess(id, SetTraceEnabled(arguments)),
 					"get_trace_tail" => ToolSuccess(id, GetTraceTail(arguments)),
 					"get_debug_events" => ToolSuccess(id, GetDebugEvents(arguments)),
 					"set_breakpoints" => ToolSuccess(id, SetBreakpoints(arguments)),
@@ -404,7 +445,8 @@ namespace Mesen.Debugger.Utilities
 			foreach(CpuType cpuType in romInfo.CpuTypes) {
 				cpuTypes.Add((JsonNode)new JsonObject {
 					["id"] = (int)cpuType,
-					["name"] = cpuType.ToString()
+					["name"] = cpuType.ToString(),
+					["memory_type"] = (int)cpuType.ToMemoryType()
 				});
 			}
 
@@ -473,6 +515,40 @@ namespace Mesen.Debugger.Utilities
 						["cycle_count"] = state.CycleCount
 					};
 				}
+				case CpuType.GenesisM68K: {
+					var state = DebugApi.GetCpuState<GenesisM68KState>(cpuType);
+					return new JsonObject {
+						["cpu_type"] = (int)cpuType,
+						["cpu_type_name"] = cpuType.ToString(),
+						["PC"] = state.PC,
+						["SR"] = state.SR,
+						["SP"] = state.A[7],
+						["SSP"] = state.SSP,
+						["D"] = new JsonArray(state.D.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
+						["A"] = new JsonArray(state.A.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()),
+						["cycle_count"] = state.CycleCount,
+						["stopped"] = state.Stopped
+					};
+				}
+				case CpuType.GenesisZ80: {
+					var state = DebugApi.GetCpuState<GenesisZ80State>(cpuType);
+					return new JsonObject {
+						["cpu_type"] = (int)cpuType,
+						["cpu_type_name"] = cpuType.ToString(),
+						["PC"] = state.PC,
+						["SP"] = state.SP,
+						["AF"] = state.AF,
+						["BC"] = state.BC,
+						["DE"] = state.DE,
+						["HL"] = state.HL,
+						["IX"] = state.IX,
+						["IY"] = state.IY,
+						["I"] = state.I,
+						["R"] = state.R,
+						["cycle_count"] = state.CycleCount,
+						["halted"] = state.Halted
+					};
+				}
 				case CpuType.Nes: {
 					NesCpuState state = DebugApi.GetCpuState<NesCpuState>(cpuType);
 					return new JsonObject {
@@ -503,8 +579,21 @@ namespace Mesen.Debugger.Utilities
 				CpuType.Snes => MakePpuState(cpuType, DebugApi.GetPpuState<SnesPpuState>(cpuType)),
 				CpuType.Gameboy => MakePpuState(cpuType, DebugApi.GetPpuState<GbPpuState>(cpuType)),
 				CpuType.Nes => MakePpuState(cpuType, DebugApi.GetPpuState<NesPpuState>(cpuType)),
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => GetGenesisPpuState(cpuType),
 				_ => throw new ArgumentException($"Structured PPU state is not available for {cpuType}.")
 			};
+		}
+
+		private static JsonObject GetGenesisPpuState(CpuType cpuType)
+		{
+			var state = DebugApi.GetPpuState<GenesisVdpTimingState>(cpuType);
+			JsonObject result = PpuStateObject(cpuType, state.VCounter, state.HCounter, state.FrameCount);
+			result["first_scanline"] = state.FirstScanline;
+			result["last_scanline"] = state.LastScanline;
+			result["vblank"] = state.VBlank;
+			result["hblank"] = state.HBlank;
+			result["display_enabled"] = state.DisplayEnable;
+			return result;
 		}
 
 		private static JsonObject MakePpuState(CpuType cpuType, BaseState state)
@@ -850,9 +939,13 @@ namespace Mesen.Debugger.Utilities
 		{
 			CpuType cpuType = GetCpuType(arguments);
 			int lineCount = OptionalInt(arguments, "line_count", 20, 1, 100);
+			uint currentPc = DebugApi.GetProgramCounter(cpuType, IsGenesisCpu(cpuType));
 			uint address = arguments?["address"] == null
-				? DebugApi.GetProgramCounter(cpuType, false)
+				? currentPc
 				: (uint)RequiredInt(arguments, "address", 0, Int32.MaxValue);
+			if(IsGenesisCpu(cpuType)) {
+				ValidateMemoryRange(cpuType.ToMemoryType(), (int)address, 1);
+			}
 
 			int startAddress = DebugApi.GetDisassemblyRowAddress(cpuType, address, -(lineCount / 2));
 			if(startAddress < 0) {
@@ -875,16 +968,84 @@ namespace Mesen.Debugger.Utilities
 
 			return new JsonObject {
 				["cpu_type"] = (int)cpuType,
-				["current_pc"] = DebugApi.GetProgramCounter(cpuType, false),
+				["current_pc"] = currentPc,
 				["lines"] = output
 			};
+		}
+
+		private static JsonObject GetAddressMapping(JsonObject? arguments)
+		{
+			CpuType cpuType = GetCpuType(arguments);
+			if(!IsGenesisCpu(cpuType)) {
+				throw new InvalidOperationException("Load a Mega Drive game before calling get_address_mapping.");
+			}
+
+			MemoryType bus = cpuType.ToMemoryType();
+			MemoryType sourceType = arguments?["memory_type"] == null ? bus : GetMemoryType(arguments, "memory_type");
+			int address = RequiredInt(arguments, "address", 0, Int32.MaxValue);
+			ValidateMemoryRange(sourceType, address, 1);
+			if(sourceType.IsRelativeMemory() && sourceType != bus) {
+				throw new ArgumentException($"Use {bus} for a {cpuType} bus address.");
+			}
+
+			AddressInfo source = new() { Type = sourceType, Address = address };
+			bool toPhysical = sourceType == bus;
+			AddressInfo target = toPhysical ? DebugApi.GetAbsoluteAddress(source) : DebugApi.GetRelativeAddress(source, cpuType);
+			bool mapped = target.Address >= 0 && (toPhysical ? target.Type != MemoryType.None && !target.Type.IsRelativeMemory() : target.Type == bus);
+			return new JsonObject {
+				["cpu_type"] = (int)cpuType,
+				["source"] = AddressObject(source),
+				["mapping"] = mapped ? AddressObject(target) : null
+			};
+		}
+
+		private static JsonObject AddressObject(AddressInfo address)
+		{
+			return new JsonObject {
+				["memory_type"] = (int)address.Type,
+				["memory_type_name"] = address.Type.ToString(),
+				["address"] = address.Address
+			};
+		}
+
+		private static JsonObject GetCallstack(JsonObject? arguments)
+		{
+			CpuType cpuType = GetCpuType(arguments);
+			int maxCount = OptionalInt(arguments, "max_count", 64, 1, DebugApi.CallstackBufferSize);
+			if(!DebugApi.GetDebuggerFeatures(cpuType).CallStack) {
+				throw new InvalidOperationException($"Call stack tracking is unavailable for {cpuType}.");
+			}
+
+			JsonArray output = new();
+			foreach(StackFrameInfo frame in DebugApi.GetCallstack(cpuType).TakeLast(maxCount)) {
+				output.Add(item: new JsonObject {
+					["source"] = frame.Source,
+					["target"] = frame.Target,
+					["return_address"] = frame.Return,
+					["return_stack_pointer"] = frame.ReturnStackPointer,
+					["flags"] = frame.Flags.ToString()
+				});
+			}
+
+			return new JsonObject { ["cpu_type"] = (int)cpuType, ["frames"] = output };
+		}
+
+		private static JsonObject SetTraceEnabled(JsonObject? arguments)
+		{
+			CpuType cpuType = GetCpuType(arguments);
+			bool enabled = arguments?["enabled"]?.GetValue<bool>() ?? throw new ArgumentException("Missing enabled flag.");
+			if(!DebugApi.SetTraceEnabled(cpuType, enabled)) {
+				throw new InvalidOperationException($"Execution tracing is unavailable for {cpuType}.");
+			}
+			return new JsonObject { ["cpu_type"] = (int)cpuType, ["enabled"] = enabled };
 		}
 
 		private static JsonObject GetTraceTail(JsonObject? arguments)
 		{
 			int count = OptionalInt(arguments, "count", 100, 1, MaxTraceRows);
 			int offset = OptionalInt(arguments, "offset", 0, 0, Int32.MaxValue);
-			TraceRow[] rows = DebugApi.GetExecutionTrace((uint)offset, (uint)count);
+			CpuType? cpuType = arguments?["cpu_type"] == null ? null : GetCpuType(arguments);
+			TraceRow[] rows = DebugApi.GetExecutionTrace((uint)offset, (uint)count, cpuType);
 			JsonArray lines = new();
 			foreach(TraceRow row in rows) {
 				byte[] byteCode = row.GetByteCode();
@@ -896,6 +1057,7 @@ namespace Mesen.Debugger.Utilities
 					hex.Append(byteCode[index].ToString("X2"));
 				}
 				lines.Add((JsonNode)new JsonObject {
+					["cpu_type"] = (int)row.Type,
 					["pc"] = row.ProgramCounter,
 					["text"] = row.GetOutput(),
 					["bytes"] = hex.ToString()
@@ -912,6 +1074,9 @@ namespace Mesen.Debugger.Utilities
 		{
 			CpuType cpuType = GetCpuType(arguments);
 			int maxCount = OptionalInt(arguments, "max_count", 100, 1, MaxTraceRows);
+			if(IsGenesisCpu(cpuType)) {
+				throw new InvalidOperationException("The Mega Drive event log is unavailable. Use get_trace_tail for CPU execution or get_genesis_vdp_state for VDP activity.");
+			}
 			DebugEventInfo[] events = DebugApi.GetDebugEvents(cpuType);
 			JsonArray output = new();
 			for(int index = 0; index < Math.Min(events.Length, maxCount); index++) {
@@ -946,6 +1111,14 @@ namespace Mesen.Debugger.Utilities
 				MemoryType memoryType = value["memory_type"] == null
 					? cpuType.ToMemoryType()
 					: GetMemoryType(value, "memory_type");
+				if(IsGenesisCpu(cpuType)) {
+					if(memoryType.IsRelativeMemory() && memoryType != cpuType.ToMemoryType()) {
+						throw new ArgumentException($"Breakpoint {index} uses the wrong bus for {cpuType}.");
+					}
+					if(memoryType == MemoryType.GenesisVdpVram) {
+						throw new ArgumentException($"Breakpoint {index}: Mega Drive VRAM breakpoints are unavailable. A CPU bus breakpoint can watch the VDP ports.");
+					}
+				}
 				int startAddress = RequiredInt(value, "address", 0, Int32.MaxValue);
 				int endAddress = OptionalInt(value, "end_address", startAddress, startAddress, Int32.MaxValue);
 				long breakpointLength = (long)endAddress - startAddress + 1;
@@ -997,6 +1170,9 @@ namespace Mesen.Debugger.Utilities
 				throw new ArgumentException($"Unknown step_type value: {stepTypeValue}.");
 			}
 
+			if(IsGenesisCpu(cpuType)) {
+				ValidateGenesisStep(cpuType, stepType, count);
+			}
 			DebugApi.Step(cpuType, count, stepType);
 			return new JsonObject {
 				["success"] = true,
@@ -1023,6 +1199,37 @@ namespace Mesen.Debugger.Utilities
 				["cpu_type"] = (int)cpuType
 			};
 		}
+
+		private static void ValidateGenesisStep(CpuType cpuType, StepType stepType, int count)
+		{
+			DebuggerFeatures features = DebugApi.GetDebuggerFeatures(cpuType);
+			bool supported = stepType switch {
+				StepType.CpuCycleStep => features.CpuCycleStep,
+				StepType.RunToNmi => features.RunToNmi,
+				StepType.RunToIrq => features.RunToIrq,
+				StepType.StepBack => features.StepBack,
+				StepType.StepOver => features.StepOver,
+				StepType.StepOut => features.StepOut,
+				_ => true
+			};
+			if(!supported) {
+				throw new ArgumentException($"{stepType} is unavailable for {cpuType}.");
+			}
+			if(stepType is (StepType.Step or StepType.PpuStep or StepType.PpuScanline or StepType.PpuFrame) && count == 0) {
+				throw new ArgumentException($"{stepType} requires a positive count.");
+			}
+			if(stepType == StepType.SpecificScanline) {
+				var state = DebugApi.GetPpuState<GenesisVdpTimingState>(cpuType);
+				bool inRange = state.FirstScanline <= state.LastScanline
+					? count >= state.FirstScanline && count <= state.LastScanline
+					: count <= state.LastScanline || (count >= state.FirstScanline && count <= 0x1FF);
+				if(!inRange) {
+					throw new ArgumentException("The VDP cannot reach that scanline in its current mode. See first_scanline and last_scanline in get_ppu_state.");
+				}
+			}
+		}
+
+		private static bool IsGenesisCpu(CpuType cpuType) => cpuType is CpuType.GenesisM68K or CpuType.GenesisZ80;
 
 		private static CpuType GetCpuType(JsonObject? arguments)
 		{

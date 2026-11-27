@@ -144,6 +144,7 @@ protected:
 	static constexpr int ExecutionLogSize = 30000;
 
 	TraceLoggerOptions _options;
+	uint32_t _rowCount = 0;
 	IConsole* _console;
 	EmuSettings* _settings;
 	LabelManager* _labelManager;
@@ -293,6 +294,7 @@ protected:
 		_cpuState[_currentPos] = cpuState;
 		((TraceLoggerType*)this)->LogPpuState();
 
+		_rowCount = std::min<uint32_t>(_rowCount + 1, BaseTraceLogger::ExecutionLogSize);
 		_rowIds[_currentPos] = ITraceLogger::NextRowId;
 		ITraceLogger::NextRowId++;
 
@@ -445,6 +447,8 @@ public:
 	void Clear() override
 	{
 		_currentPos = 0;
+		_rowCount = 0;
+		_pendingLog = false;
 		memset(_rowIds, 0, sizeof(uint64_t) * BaseTraceLogger::ExecutionLogSize);
 	}
 
@@ -501,8 +505,27 @@ public:
 		_debugger->ProcessConfigChange();
 	}
 
+	void SetEnabled(bool enabled) override
+	{
+		DebugBreakHelper helper(_debugger);
+		if(_enabled == enabled) {
+			return;
+		}
+		if(enabled && _options.Format[0] == 0) {
+			constexpr char format[] = "[Disassembly] [Align,36] V:[Scanline,3] H:[Cycle,3]";
+			memcpy(_options.Format, format, sizeof(format));
+			ParseFormatString(_options.Format);
+		}
+		_enabled = _options.Enabled = enabled;
+		_pendingLog = false;
+		_debugger->ProcessConfigChange();
+	}
+
 	int64_t GetRowId(uint32_t offset) override
 	{
+		if(offset >= _rowCount) {
+			return -1;
+		}
 		int32_t pos = ((int32_t)_currentPos - (int32_t)offset);
 		int32_t i = (pos > 0 ? pos : BaseTraceLogger::ExecutionLogSize + pos) - 1;
 		if(!_disassemblyCache[i].IsInitialized()) {

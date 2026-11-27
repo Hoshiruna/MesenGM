@@ -14,7 +14,11 @@ MemoryAccessCounter::MemoryAccessCounter(Debugger* debugger)
 	_enableBreakOnUninitRead = _debugger->GetConsole()->GetMasterClock() < 1000;
 
 	for(int i = (int)DebugUtilities::GetLastCpuMemoryType() + 1; i < DebugUtilities::GetMemoryTypeCount(); i++) {
-		uint32_t memSize = _debugger->GetMemoryDumper()->GetMemorySize((MemoryType)i);
+		MemoryType type = (MemoryType)i;
+		if(DebugUtilities::IsRelativeMemory(type)) {
+			continue;
+		}
+		uint32_t memSize = _debugger->GetMemoryDumper()->GetMemorySize(type);
 		if(memSize > 0) {
 			_counters[i] = vector<AddressCounters>(memSize);
 		}

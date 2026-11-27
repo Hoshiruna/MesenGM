@@ -91,8 +91,8 @@ namespace Mesen.Debugger.ViewModels
 				if(cpuType != null) {
 					CpuType = cpuType.Value;
 					if(consoleType.GetMainCpuType() != CpuType) {
-						Title = ResourceHelper.GetEnumText(CpuType) + " Debugger";
-						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset("Assets/" + CpuType.ToString() + "Debugger.png"));
+						Title = CpuType == CpuType.GenesisZ80 ? ResourceHelper.GetMessage("OpenGenesisZ80Debugger") : ResourceHelper.GetEnumText(CpuType) + " Debugger";
+						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset(CpuType == CpuType.GenesisZ80 ? "Assets/Z80Debugger.png" : "Assets/" + CpuType.ToString() + "Debugger.png"));
 						IsMainCpuDebugger = false;
 					} else {
 						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset("Assets/Debugger.png"));
@@ -128,6 +128,7 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Nes => new NesStatusViewModel(),
 				CpuType.Pce => new PceStatusViewModel(),
 				CpuType.Sms => new SmsStatusViewModel(),
+				CpuType.GenesisM68K or CpuType.GenesisZ80 => new GenesisStatusViewModel(CpuType),
 				CpuType.Gba => new GbaStatusViewModel(),
 				CpuType.Ws => new WsStatusViewModel(),
 				_ => null
@@ -698,6 +699,10 @@ namespace Mesen.Debugger.ViewModels
 			int getAddress(CpuVectorDefinition def)
 			{
 				if(def.Type == VectorType.Indirect) {
+					if(CpuType == CpuType.GenesisM68K) {
+						byte[] target = DebugApi.GetMemoryValues(CpuType.ToMemoryType(), def.Address, def.Address + 3);
+						return (target[1] << 16) | (target[2] << 8) | target[3];
+					}
 					byte[] vector = DebugApi.GetMemoryValues(CpuType.ToMemoryType(), def.Address, def.Address + 1);
 					return vector[0] | (vector[1] << 8);
 				} else if(def.Type == VectorType.Direct) {

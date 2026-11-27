@@ -108,5 +108,7 @@ enum class MemoryType
 	GenesisZ80Ram,
 	GenesisVdpVram,
 	GenesisCartridgeRom,
-	GenesisCartridgeRam
+	GenesisCartridgeRam,
+	GenesisM68KMemory,
+	GenesisZ80Memory
 };

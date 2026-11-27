@@ -285,10 +285,8 @@ public:
 
 	template<CpuType type> __forceinline void ProcessInstruction()
 	{
-		if constexpr(CpuTypeUtilities::SupportsDebugger(type)) {
-			if(_internalDebugger) {
-				_internalDebugger->ProcessInstruction<type>();
-			}
+		if(_internalDebugger) {
+			_internalDebugger->ProcessInstruction<type>();
 		}
 	}
 
@@ -323,10 +321,8 @@ public:
 
 	template<CpuType type> __forceinline void ProcessHaltedCpu()
 	{
-		if constexpr(CpuTypeUtilities::SupportsDebugger(type)) {
-			if(_internalDebugger) {
-				_internalDebugger->ProcessHaltedCpu<type>();
-			}
+		if(_internalDebugger) {
+			_internalDebugger->ProcessHaltedCpu<type>();
 		}
 	}
 
@@ -353,10 +349,8 @@ public:
 
 	template<CpuType type> void ProcessInterrupt(uint32_t originalPc, uint32_t currentPc, bool forNmi)
 	{
-		if constexpr(CpuTypeUtilities::SupportsDebugger(type)) {
-			if(_internalDebugger) {
-				_internalDebugger->ProcessInterrupt<type>(originalPc, currentPc, forNmi);
-			}
+		if(_internalDebugger) {
+			_internalDebugger->ProcessInterrupt<type>(originalPc, currentPc, forNmi);
 		}
 	}
 
