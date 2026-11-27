@@ -92,7 +92,7 @@ namespace Mesen.Debugger.ViewModels
 					CpuType = cpuType.Value;
 					if(consoleType.GetMainCpuType() != CpuType) {
 						Title = CpuType == CpuType.GenesisZ80 ? ResourceHelper.GetMessage("OpenGenesisZ80Debugger") : ResourceHelper.GetEnumText(CpuType) + " Debugger";
-						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset(CpuType == CpuType.GenesisZ80 ? "Assets/GenesisIcon.png" : "Assets/" + CpuType.ToString() + "Debugger.png"));
+						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset(CpuType == CpuType.GenesisZ80 ? "Assets/Z80Debugger.png" : "Assets/" + CpuType.ToString() + "Debugger.png"));
 						IsMainCpuDebugger = false;
 					} else {
 						Icon = new WindowIcon(ImageUtilities.BitmapFromAsset("Assets/Debugger.png"));

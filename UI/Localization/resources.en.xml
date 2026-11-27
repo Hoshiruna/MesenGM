@@ -2936,6 +2936,10 @@ E
 			<Value ID="GenesisM68KMemory">68000 Bus</Value>
 			<Value ID="GenesisZ80Memory">Z80 Bus</Value>
 			<Value ID="GenesisVdpVram">VRAM</Value>
+			<Value ID="GenesisM68KRam">68000 RAM</Value>
+			<Value ID="GenesisZ80Ram">Z80 RAM</Value>
+			<Value ID="GenesisCartridgeRom">Cartridge ROM</Value>
+			<Value ID="GenesisCartridgeRam">Save Memory</Value>
 			<Value ID="SnesMemory">CPU Memory</Value>
 			<Value ID="SpcMemory">SPC Memory</Value>
 			<Value ID="Sa1Memory">SA-1 Memory</Value>

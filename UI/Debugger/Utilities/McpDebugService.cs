@@ -1018,7 +1018,7 @@ namespace Mesen.Debugger.Utilities
 
 			JsonArray output = new();
 			foreach(StackFrameInfo frame in DebugApi.GetCallstack(cpuType).TakeLast(maxCount)) {
-				output.Add(new JsonObject {
+				output.Add(item: new JsonObject {
 					["source"] = frame.Source,
 					["target"] = frame.Target,
 					["return_address"] = frame.Return,
