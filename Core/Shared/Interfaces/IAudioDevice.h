@@ -5,6 +5,7 @@
 struct AudioStatistics
 {
 	double AverageLatency = 0;
+	uint32_t MinimumLatency = 0;
 	uint32_t BufferUnderrunEventCount = 0;
 	uint32_t BufferSize = 0;
 };

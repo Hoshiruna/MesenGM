@@ -59,6 +59,7 @@ namespace Mesen.Utilities
 								"*.gb", "*.gbc", "*.gbx", "*.gbs",
 								"*.pce", "*.sgx", "*.cue", "*.hes",
 								"*.sms", "*.gg", "*.sg", "*.col",
+								"*.md", "*.gen", "*.smd",
 								"*.gba",
 								"*.ws", "*.wsc", "*.pc2",
 								"*.bin",
@@ -71,6 +72,7 @@ namespace Mesen.Utilities
 						filter.Add(new FilePickerFileType("GB ROM files") { Patterns = new List<string>() { "*.gb", "*.gbc", "*.gbx", "*.gbs" } });
 						filter.Add(new FilePickerFileType("GBA ROM files") { Patterns = new List<string>() { "*.gba" } });
 						filter.Add(new FilePickerFileType("PC Engine ROM files") { Patterns = new List<string>() { "*.pce", "*.sgx", "*.cue", "*.hes" } });
+						filter.Add(new FilePickerFileType("Mega Drive / Genesis ROM files") { Patterns = new List<string>() { "*.md", "*.gen", "*.smd", "*.bin" } });
 						filter.Add(new FilePickerFileType("SMS / GG ROM files") { Patterns = new List<string>() { "*.sms", "*.gg" } });
 						filter.Add(new FilePickerFileType("SG-1000 ROM files") { Patterns = new List<string>() { "*.sg" } });
 						filter.Add(new FilePickerFileType("ColecoVision ROM files") { Patterns = new List<string>() { "*.col" } });

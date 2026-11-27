@@ -35,6 +35,7 @@ namespace Mesen.Config
 		[ObservableProperty] public partial CvConfig Cv { get; set; } = new();
 		[ObservableProperty] public partial GbaConfig Gba { get; set; } = new();
 		[ObservableProperty] public partial WsConfig Ws { get; set; } = new();
+		[ObservableProperty] public partial GenesisConfig Genesis { get; set; } = new();
 		[ObservableProperty] public partial PreferencesConfig Preferences { get; set; } = new();
 		[ObservableProperty] public partial AudioPlayerConfig AudioPlayer { get; set; } = new();
 		[ObservableProperty] public partial DebugConfig Debug { get; set; } = new();
@@ -92,6 +93,7 @@ namespace Mesen.Config
 			Sms.ApplyConfig();
 			Cv.ApplyConfig();
 			Ws.ApplyConfig();
+			Genesis.ApplyConfig();
 			Preferences.ApplyConfig();
 			AudioPlayer.ApplyConfig();
 			Debug.ApplyConfig();
@@ -129,6 +131,10 @@ namespace Mesen.Config
 				Ws.InitializeDefaults(DefaultKeyMappings);
 			}
 
+			if(ConfigUpgrade < (int)ConfigUpgradeHint.GenesisInput) {
+				Genesis.InitializeDefaults(DefaultKeyMappings);
+			}
+
 			if(ConfigUpgrade < (int)ConfigUpgradeHint.WindowsAudioLatency) {
 				//Set audio back down to 30ms when upgrading from DirectSound to WASAPI
 				if(OperatingSystem.IsWindows()) {
@@ -151,6 +157,7 @@ namespace Mesen.Config
 				Sms.InitializeDefaults(DefaultKeyMappings);
 				Cv.InitializeDefaults(DefaultKeyMappings);
 				Ws.InitializeDefaults(DefaultKeyMappings);
+				Genesis.InitializeDefaults(DefaultKeyMappings);
 				ConfigUpgrade = (int)ConfigUpgradeHint.NextValue - 1;
 			}
 			Preferences.InitializeDefaultShortcuts();
@@ -330,6 +337,7 @@ namespace Mesen.Config
 		CvInput,
 		WsInput,
 		WindowsAudioLatency,
+		GenesisInput,
 		NextValue,
 	}
 }

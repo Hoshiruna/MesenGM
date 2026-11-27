@@ -15,14 +15,21 @@ enum class CpuType : uint8_t
 	Pce,
 	Sms,
 	Gba,
-	Ws
+	Ws,
+	GenesisM68K,
+	GenesisZ80
 };
 
 class CpuTypeUtilities
 {
 public:
+	static constexpr bool SupportsDebugger(CpuType type)
+	{
+		return type != CpuType::GenesisM68K && type != CpuType::GenesisZ80;
+	}
+
 	static constexpr int GetCpuTypeCount()
 	{
-		return (int)CpuType::Ws + 1;
+		return (int)CpuType::GenesisZ80 + 1;
 	}
 };

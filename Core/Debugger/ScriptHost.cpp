@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "Debugger/ScriptHost.h"
 #include "Debugger/ScriptingContext.h"
-#include "Debugger/ScriptingContext.h"
 #include "Shared/EventType.h"
 #include "Shared/MemoryOperationType.h"
 

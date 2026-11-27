@@ -286,6 +286,9 @@ void SaveStateManager::SaveRecentGame(string romName, string romPath, string pat
 	romInfoStream << romName << std::endl;
 	romInfoStream << romPath << std::endl;
 	romInfoStream << patchPath << std::endl;
+	if(_emu->GetConsoleType() == ConsoleType::Genesis) {
+		romInfoStream << "console=genesis" << std::endl;
+	}
 
 	FrameInfo baseFrameSize = _emu->GetVideoDecoder()->GetBaseFrameInfo(true);
 	double aspectRatio = _emu->GetSettings()->GetAspectRatio(_emu->GetRegion(), baseFrameSize);
@@ -317,8 +320,17 @@ void SaveStateManager::LoadRecentGame(string filename, bool resetGame)
 	std::getline(romInfoStream, romPath);
 	std::getline(romInfoStream, patchPath);
 
+	optional<ConsoleType> forcedConsoleType;
+	string option;
+	while(std::getline(romInfoStream, option)) {
+		if(option == "console=genesis") {
+			forcedConsoleType = ConsoleType::Genesis;
+			break;
+		}
+	}
+
 	try {
-		if(_emu->LoadRom(romPath, patchPath)) {
+		if(_emu->LoadRom(romPath, patchPath, true, false, forcedConsoleType)) {
 			if(!resetGame) {
 				auto lock = _emu->AcquireLock();
 				SaveStateManager::LoadState(stateStream);
@@ -341,14 +353,18 @@ int32_t SaveStateManager::GetSaveStatePreview(string saveStatePath, uint8_t* png
 	stream.read(header, 3);
 	if(memcmp(header, "MSS", 3) == 0) {
 		uint32_t emuVersion = ReadValue(stream);
-		if(emuVersion > _emu->GetSettings()->GetVersion() || emuVersion <= 0x10000) {
-			//Prevent loading files created with a newer version of Mesen or with Mesen 0.9.x or lower.
+		if(emuVersion > _emu->GetSettings()->GetVersion()) {
 			return -1;
 		}
 
 		uint32_t fileFormatVersion = ReadValue(stream);
 		if(fileFormatVersion < SaveStateManager::MinimumSupportedVersion) {
 			return -1;
+		}
+
+		if(fileFormatVersion <= 3) {
+			//Format 3 stores a 40-byte SHA-1 field before the console type.
+			stream.seekg(40, ios::cur);
 		}
 
 		//Skip console type field

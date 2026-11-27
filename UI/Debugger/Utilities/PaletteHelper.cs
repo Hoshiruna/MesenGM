@@ -34,6 +34,17 @@ namespace Mesen.Debugger.Utilities
 				entries.AddEntry("R", "$" + ((rawPalette[index] >> 3) & 0x07).ToString("X2"));
 				entries.AddEntry("G", "$" + (rawPalette[index] >> 6).ToString("X2"));
 				entries.AddEntry("B", "$" + (rawPalette[index] & 0x07).ToString("X2"));
+			} else if(format == RawPaletteFormat.GenesisRgb333) {
+				uint color = rawPalette[index];
+				uint red = color & 7;
+				uint green = (color >> 3) & 7;
+				uint blue = (color >> 6) & 7;
+				entries.AddEntry("Palette", index / 16);
+				entries.AddEntry("CRAM address", $"${index * 2:X2}");
+				entries.AddEntry("CRAM word", $"${((blue << 9) | (green << 5) | (red << 1)):X4}");
+				entries.AddEntry("R", red);
+				entries.AddEntry("G", green);
+				entries.AddEntry("B", blue);
 			} else if(format == RawPaletteFormat.Rgb222) {
 				//SMS
 				entries.AddEntry("Value", "$" + rawPalette[index].ToString("X2"));

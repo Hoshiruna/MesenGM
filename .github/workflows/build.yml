@@ -119,7 +119,7 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           name: Mesen (Linux - ${{ matrix.platform.os }} - ${{ matrix.compiler }})
-          path: bin/linux-${{ matrix.platform.path }}/Release/linux-${{ matrix.platform.path }}/publish/Mesen
+          path: bin/linux-${{ matrix.platform.path }}/Release/linux-${{ matrix.platform.path }}/publish/MesenGM
 
   appimage:
     if: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -180,7 +180,7 @@ jobs:
         compiler: [clang, clang_aot]
         platform: [
           {os: macos-15-intel, arch: x64},
-          {os: macos-15, arch: arm64}
+          {os: macos-26, arch: arm64}
         ]
         include:
           - compiler: clang

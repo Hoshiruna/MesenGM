@@ -32,6 +32,7 @@ enum class RomFormat
 	Gba,
 
 	Ws,
+	Genesis,
 };
 
 struct DipSwitchInfo

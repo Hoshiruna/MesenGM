@@ -31,7 +31,7 @@ void BaseVideoFilter::SetBaseFrameInfo(FrameInfo frameInfo)
 
 FrameInfo BaseVideoFilter::GetFrameInfo()
 {
-	FrameInfo frameInfo = _baseFrameInfo;
+	FrameInfo frameInfo = GetDisplayFrameInfo();
 	OverscanDimensions overscan = GetOverscan();
 	frameInfo.Width -= overscan.Left + overscan.Right;
 	frameInfo.Height -= overscan.Top + overscan.Bottom;

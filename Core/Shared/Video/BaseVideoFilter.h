@@ -51,6 +51,7 @@ public:
 	void TakeScreenshot(VideoFilterType filterType, string filename, std::stringstream* stream = nullptr);
 
 	virtual HudScaleFactors GetScaleFactor() { return { 1.0, 1.0 }; }
+	virtual FrameInfo GetDisplayFrameInfo() const { return _baseFrameInfo; }
 	virtual OverscanDimensions GetOverscan();
 	void SetOverscan(OverscanDimensions dimensions);
 	FrameInfo GetFrameInfo(uint16_t* ppuOutputBuffer, bool enableOverscan);

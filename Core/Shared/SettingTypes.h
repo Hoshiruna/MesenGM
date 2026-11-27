@@ -276,7 +276,10 @@ enum class ControllerType
 	//WS
 	WsController,
 	WsControllerVertical,
-	Pcv2Controller
+	Pcv2Controller,
+
+	GenesisController,
+	GenesisController6Buttons
 };
 
 struct KeyMapping
@@ -400,7 +403,8 @@ enum class ConsoleType
 	PcEngine = 3,
 	Sms = 4,
 	Gba = 5,
-	Ws = 6
+	Ws = 6,
+	Genesis = 7
 };
 
 enum class GameboyModel
@@ -826,6 +830,32 @@ enum class WsAudioMode : uint8_t
 {
 	Headphones,
 	Speakers
+};
+
+enum class GenesisModel
+{
+	Model1,
+	Model2,
+	MegaDrive
+};
+
+struct GenesisConfig
+{
+	ControllerConfig Port1;
+	ControllerConfig Port2;
+
+	ConsoleRegion Region = ConsoleRegion::Auto;
+	GenesisModel Model = GenesisModel::Model1;
+	RamState RamPowerOnState = RamState::Random;
+	bool DisableSprites = false;
+	bool DisableBackground = false;
+	bool RemoveSpriteLimit = false;
+
+	uint32_t PsgVolume = 100;
+	uint32_t Ym2612Volume = 100;
+
+	OverscanDimensions NtscOverscan = {};
+	OverscanDimensions PalOverscan = {};
 };
 
 struct WsConfig

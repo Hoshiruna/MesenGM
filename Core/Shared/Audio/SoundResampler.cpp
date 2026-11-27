@@ -35,12 +35,12 @@ double SoundResampler::GetTargetRateAdjustment()
 		AudioStatistics stats = _emu->GetSoundMixer()->GetStatistics();
 
 		if(stats.AverageLatency > 0 && _emu->GetSettings()->GetEmulationSpeed() == 100) {
-			//Try to stay within +/- 3ms of requested latency
+			//Try to stay within +/- 3ms of the output device's latency target.
 			constexpr int32_t maxGap = 3;
 			constexpr int32_t maxSubAdjustment = 3600;
 
-			int32_t requestedLatency = (int32_t)cfg.AudioLatency;
-			double latencyGap = stats.AverageLatency - requestedLatency;
+			uint32_t targetLatency = std::max(cfg.AudioLatency, stats.MinimumLatency);
+			double latencyGap = stats.AverageLatency - targetLatency;
 			double adjustment = std::min(0.0025, (std::ceil((std::abs(latencyGap) - maxGap) * 8)) * 0.00003125);
 
 			if(latencyGap < 0 && _underTarget < maxSubAdjustment) {

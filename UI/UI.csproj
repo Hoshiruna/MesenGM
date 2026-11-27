@@ -5,11 +5,11 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
-    <AssemblyName>Mesen</AssemblyName>
+    <AssemblyName>MesenGM</AssemblyName>
     <RootNamespace>Mesen</RootNamespace>
     <StartupObject>Mesen.Program</StartupObject>
-    <Version>2.2.1</Version>
-    <FileVersion>2.2.1</FileVersion>
+    <Version>0.0.1</Version>
+    <FileVersion>0.0.1</FileVersion>
     <Copyright>(C) 2014-2026 Sour</Copyright>
   </PropertyGroup>
 	<PropertyGroup>
@@ -103,7 +103,7 @@
 		<AvaloniaNameGeneratorIsEnabled>False</AvaloniaNameGeneratorIsEnabled>
 	</PropertyGroup>
 	<ItemGroup>
-		<TrimmerRootAssembly Include="Mesen" />
+		<TrimmerRootAssembly Include="$(AssemblyName)" />
 		<TrimmerRootAssembly Include="AvaloniaEdit" />
 		<TrimmerRootAssembly Include="Dock.Avalonia" />
 		<TrimmerRootAssembly Include="Dock.Model" />
@@ -297,6 +297,9 @@
     <Compile Update="Views\WsControllerView.axaml.cs">
       <DependentUpon>WsControllerView.axaml</DependentUpon>
     </Compile>
+    <Compile Update="Views\GenesisConfigView.axaml.cs">
+      <DependentUpon>GenesisConfigView.axaml</DependentUpon>
+    </Compile>
     <Compile Update="Views\WsConfigView.axaml.cs">
       <DependentUpon>WsConfigView.axaml</DependentUpon>
     </Compile>
@@ -428,6 +431,12 @@
     </Compile>
     <Compile Update="Views\SmsInputConfigView.axaml.cs">
       <DependentUpon>SmsInputConfigView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\GenesisController6ButtonsView.axaml.cs">
+      <DependentUpon>GenesisController6ButtonsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\GenesisController3ButtonsView.axaml.cs">
+      <DependentUpon>GenesisController3ButtonsView.axaml</DependentUpon>
     </Compile>
     <Compile Update="Views\SmsControllerView.axaml.cs">
       <DependentUpon>SmsControllerView.axaml</DependentUpon>

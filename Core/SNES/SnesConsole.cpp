@@ -30,7 +30,6 @@
 #include "Utilities/VirtualFile.h"
 #include "Utilities/FolderUtilities.h"
 #include "SNES/RegisterHandlerA.h"
-#include "SNES/RegisterHandlerB.h"
 #include "Utilities/ArchiveReader.h"
 
 SnesConsole::SnesConsole(Emulator* emu)

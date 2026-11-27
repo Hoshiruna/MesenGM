@@ -18,6 +18,7 @@ namespace Mesen.Debugger.Windows
 	{
 		private PaletteViewerViewModel _model;
 		private PaletteSelector _palSelector;
+		internal bool IsGenesisViewer => _model.IsGenesis;
 
 		[Obsolete("For designer only")]
 		public PaletteViewerWindow() : this(CpuType.Snes) { }
@@ -97,6 +98,9 @@ namespace Mesen.Debugger.Windows
 				return;
 			}
 
+			if(IsGenesisViewer) {
+				GenesisViewer.StartRefreshTimer(this, _model.Config.RefreshTiming, _model.RefreshData, () => _model.HasGenesisSnapshot);
+			}
 			_model.RefreshData();
 		}
 
@@ -114,7 +118,9 @@ namespace Mesen.Debugger.Windows
 
 		public void ProcessNotification(NotificationEventArgs e)
 		{
-			ToolRefreshHelper.ProcessNotification(this, e, _model.RefreshTiming, _model, _model.RefreshData);
+			if(_model.RefreshTiming is { } timing) {
+				ToolRefreshHelper.ProcessNotification(this, e, timing, _model, _model.RefreshData);
+			}
 		}
 
 		protected override void OnKeyDown(KeyEventArgs e)

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "NES/Mappers/Homebrew/Rainbow.h"
 #include "NES/Mappers/Homebrew/RainbowAudio.h"
-#include "NES/Mappers/Homebrew/RainbowAudio.h"
 #include "NES/Mappers/Homebrew/FlashS29.h"
 #include "NES/NesConsole.h"
 #include "NES/NesCpu.h"

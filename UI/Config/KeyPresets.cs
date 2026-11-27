@@ -64,6 +64,18 @@ namespace Mesen.Config
 				m.Down = InputApi.GetKeyCode("Right Arrow");
 				m.Left = InputApi.GetKeyCode("Down Arrow");
 				m.Right = InputApi.GetKeyCode("Up Arrow");
+			} else if(type == ControllerType.GenesisController6Buttons) {
+				m.A = InputApi.GetKeyCode("J");
+				m.B = InputApi.GetKeyCode("K");
+				m.X = InputApi.GetKeyCode("L");
+				m.Y = InputApi.GetKeyCode("U");
+				m.L = InputApi.GetKeyCode("I");
+				m.R = InputApi.GetKeyCode("O");
+				m.Select = InputApi.GetKeyCode("Right Shift");
+				m.Start = InputApi.GetKeyCode("Enter");
+			} else if(type == ControllerType.GenesisController) {
+				m.X = InputApi.GetKeyCode("L");
+				m.Start = InputApi.GetKeyCode("I");
 			} else {
 				m.TurboA = InputApi.GetKeyCode(";");
 				m.TurboB = InputApi.GetKeyCode("M");
@@ -133,6 +145,20 @@ namespace Mesen.Config
 				m.D = InputApi.GetKeyCode("Right Arrow");
 				m.L = InputApi.GetKeyCode("Down Arrow");
 				m.R = InputApi.GetKeyCode("Up Arrow");
+			} else if(type == ControllerType.GenesisController6Buttons) {
+				m.A = InputApi.GetKeyCode("Z");
+				m.B = InputApi.GetKeyCode("X");
+				m.X = InputApi.GetKeyCode("C");
+				m.Y = InputApi.GetKeyCode("A");
+				m.L = InputApi.GetKeyCode("S");
+				m.R = InputApi.GetKeyCode("D");
+				m.Select = InputApi.GetKeyCode("W");
+				m.Start = InputApi.GetKeyCode("Q");
+			} else if(type == ControllerType.GenesisController) {
+				m.A = InputApi.GetKeyCode(".");
+				m.B = InputApi.GetKeyCode(",");
+				m.X = InputApi.GetKeyCode("/");
+				m.Start = InputApi.GetKeyCode("Enter");
 			} else {
 				m.TurboA = InputApi.GetKeyCode("X");
 				m.TurboB = InputApi.GetKeyCode("Z");
@@ -183,6 +209,13 @@ namespace Mesen.Config
 				m.Down = InputApi.GetKeyCode(prefix + "RT Right");
 				m.Left = InputApi.GetKeyCode(prefix + "RT Up");
 				m.Right = InputApi.GetKeyCode(prefix + "RT Down");
+			} else if(type == ControllerType.GenesisController6Buttons) {
+				m.X = InputApi.GetKeyCode(prefix + (altLayout ? "B" : "X"));
+				m.Y = InputApi.GetKeyCode(prefix + "Y");
+				m.L = InputApi.GetKeyCode(prefix + "L1");
+				m.R = InputApi.GetKeyCode(prefix + "R1");
+			} else if(type == ControllerType.GenesisController) {
+				m.X = InputApi.GetKeyCode(prefix + "Y");
 			} else {
 				m.TurboA = InputApi.GetKeyCode(prefix + (altLayout ? "B" : "Y"));
 				m.TurboB = InputApi.GetKeyCode(prefix + (altLayout ? "Y" : "X"));
@@ -230,6 +263,13 @@ namespace Mesen.Config
 				m.Down = InputApi.GetKeyCode(prefix + "X2+");
 				m.Left = InputApi.GetKeyCode(prefix + "Y2+");
 				m.Right = InputApi.GetKeyCode(prefix + "Y2-");
+			} else if(type == ControllerType.GenesisController6Buttons) {
+				m.X = InputApi.GetKeyCode(prefix + (altLayout ? "But3" : "But1"));
+				m.Y = InputApi.GetKeyCode(prefix + "But4");
+				m.L = InputApi.GetKeyCode(prefix + "But5");
+				m.R = InputApi.GetKeyCode(prefix + "But6");
+			} else if(type == ControllerType.GenesisController) {
+				m.X = InputApi.GetKeyCode(prefix + "But4");
 			} else {
 				m.TurboA = InputApi.GetKeyCode(prefix + (altLayout ? "But3" : "But4"));
 				m.TurboB = InputApi.GetKeyCode(prefix + (altLayout ? "But4" : "But1"));

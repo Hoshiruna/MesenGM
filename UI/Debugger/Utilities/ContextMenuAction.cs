@@ -906,6 +906,8 @@ namespace Mesen.Debugger.Utilities
 		ShaderSettings,
 		[IconFile("Help")]
 		NoShadersFound,
-		OpenShaderFolder
+		OpenShaderFolder,
+		[IconFile("GenesisIcon")]
+		Genesis
 	}
 }

@@ -14,8 +14,14 @@ namespace Mesen.Interop
 				ConsoleType.Sms => CpuType.Sms,
 				ConsoleType.Gba => CpuType.Gba,
 				ConsoleType.Ws => CpuType.Ws,
+				ConsoleType.Genesis => CpuType.GenesisM68K,
 				_ => throw new Exception("Invalid type")
 			};
+		}
+
+		public static bool SupportsDebugger(this ConsoleType type)
+		{
+			return type != ConsoleType.Genesis;
 		}
 
 		public static bool SupportsCheats(this ConsoleType type)
@@ -23,6 +29,7 @@ namespace Mesen.Interop
 			return type switch {
 				ConsoleType.Gba => false,
 				ConsoleType.Ws => false,
+				ConsoleType.Genesis => false,
 				_ => true
 			};
 		}

@@ -212,22 +212,22 @@ namespace Mesen.Config
 		[ObservableProperty] public partial UInt32 TurboSpeed { get; set; } = 0;
 		[ObservableProperty] public partial ControllerType Type { get; set; } = ControllerType.None;
 
-		public void InitDefaults(DefaultKeyMappingType defaultMappings, ControllerType type)
+		public void InitDefaults(DefaultKeyMappingType defaultMappings, ControllerType type, int port = 0)
 		{
-			InitDefaults<KeyMapping>(defaultMappings, type);
+			InitDefaults<KeyMapping>(defaultMappings, type, port);
 		}
 
-		public void InitDefaults<T>(DefaultKeyMappingType defaultMappings, ControllerType type) where T : KeyMapping, new()
+		public void InitDefaults<T>(DefaultKeyMappingType defaultMappings, ControllerType type, int port = 0) where T : KeyMapping, new()
 		{
 			List<T> mappings = new List<T>();
 			if(defaultMappings.HasFlag(DefaultKeyMappingType.Xbox)) {
 				T mapping = new T();
-				mapping.SetDefaultKeys(type, KeyPresetType.XboxP1);
+				mapping.SetDefaultKeys(type, port == 1 ? KeyPresetType.XboxP2 : KeyPresetType.XboxP1);
 				mappings.Add(mapping);
 			}
 			if(defaultMappings.HasFlag(DefaultKeyMappingType.Ps4)) {
 				T mapping = new T();
-				mapping.SetDefaultKeys(type, KeyPresetType.Ps4P1);
+				mapping.SetDefaultKeys(type, port == 1 ? KeyPresetType.Ps4P2 : KeyPresetType.Ps4P1);
 				mappings.Add(mapping);
 			}
 			if(defaultMappings.HasFlag(DefaultKeyMappingType.WasdKeys)) {
@@ -416,6 +416,9 @@ namespace Mesen.Config
 		WsController,
 		WsControllerVertical,
 		Pcv2Controller,
+
+		GenesisController,
+		GenesisController6Buttons,
 	}
 
 	public static class ControllerTypeExtensions
@@ -441,6 +444,8 @@ namespace Mesen.Config
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
+				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 				case ControllerType.Pachinko:
 				case ControllerType.FcnsController:
 					return true;
@@ -471,6 +476,8 @@ namespace Mesen.Config
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
+				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 					return true;
 			}
 
@@ -521,6 +528,8 @@ namespace Mesen.Config
 				case ControllerType.WsController:
 				case ControllerType.WsControllerVertical:
 				case ControllerType.Pcv2Controller:
+				case ControllerType.GenesisController:
+				case ControllerType.GenesisController6Buttons:
 					return true;
 			}
 

@@ -162,6 +162,20 @@ namespace Mesen.Debugger.Utilities
 					readOnly: true
 				),
 				(JsonNode)MakeToolDef(
+					"get_genesis_vdp_state",
+					"Read the last submitted Mega Drive frame's VDP state, sprite table, and sprite cache. Set scanline for sprite mappings and horizontal scroll fetches. Set include_hscroll_writes to trace changes to that line's scroll words.",
+					new JsonObject {
+						["type"] = "object",
+						["properties"] = new JsonObject {
+							["scanline"] = IntegerProperty("Active-display VDP scanline. Omit it to skip sprite mapping and horizontal scroll fetches.", minimum: 0, maximum: GenesisVdpDebugApi.MaxScanline),
+							["include_hscroll_writes"] = BooleanProperty("Include VRAM changes to the two horizontal scroll words fetched on scanline. Requires scanline.", defaultValue: false),
+							["sprite_offset"] = IntegerProperty("First sprite table index to return.", minimum: 0, maximum: GenesisVdpDebugApi.MaxSprites - 1, defaultValue: 0),
+							["sprite_count"] = IntegerProperty("Maximum number of sprite table entries to return. Use zero for only VDP state or scanline fetches.", minimum: 0, maximum: GenesisVdpDebugApi.MaxSprites, defaultValue: 20)
+						}
+					},
+					readOnly: true
+				),
+				(JsonNode)MakeToolDef(
 					"get_screen",
 					"Capture the most recently rendered frame as a PNG image. The result contains an image content block plus width, height, and frame count. By default the image is the console's native output; set apply_video_filter to include the user's scale/NTSC filter.",
 					new JsonObject {
@@ -342,12 +356,16 @@ namespace Mesen.Debugger.Utilities
 			}
 
 			try {
-				EnsureRomLoaded();
+				RomInfo romInfo = EnsureRomLoaded();
+				if(!romInfo.ConsoleType.SupportsDebugger() && toolName is not ("debugger_status" or "get_rom_info" or "get_screen" or "get_genesis_vdp_state")) {
+					return ToolError(id, "This tool is unavailable on Mega Drive. Use get_genesis_vdp_state to inspect the VDP.");
+				}
 				return toolName switch {
 					"debugger_status" => ToolSuccess(id, GetDebuggerStatus()),
 					"get_rom_info" => ToolSuccess(id, GetRomInfo()),
 					"get_cpu_state" => ToolSuccess(id, GetCpuState(arguments)),
 					"get_ppu_state" => ToolSuccess(id, GetPpuState(arguments)),
+					"get_genesis_vdp_state" => ToolSuccess(id, GetGenesisVdpState(romInfo.ConsoleType, arguments)),
 					"get_screen" => GetScreen(id, arguments),
 					"get_memory_range" => ToolSuccess(id, GetMemoryRange(arguments)),
 					"search_memory" => ToolSuccess(id, SearchMemory(arguments)),
@@ -507,6 +525,126 @@ namespace Mesen.Debugger.Utilities
 				["scanline"] = scanline,
 				["cycle"] = cycle,
 				["frame_count"] = frameCount
+			};
+		}
+
+		private static JsonObject GetGenesisVdpState(ConsoleType consoleType, JsonObject? arguments)
+		{
+			if(consoleType != ConsoleType.Genesis) {
+				throw new InvalidOperationException("Load a Mega Drive game before calling get_genesis_vdp_state.");
+			}
+
+			int scanline = OptionalInt(arguments, "scanline", -1, 0, GenesisVdpDebugApi.MaxScanline);
+			bool includeHscrollWrites = OptionalBool(arguments, "include_hscroll_writes", false);
+			if(includeHscrollWrites && scanline < 0) {
+				throw new InvalidOperationException("Specify scanline when requesting horizontal scroll writes.");
+			}
+			int offset = OptionalInt(arguments, "sprite_offset", 0, 0, GenesisVdpDebugApi.MaxSprites - 1);
+			int count = OptionalInt(arguments, "sprite_count", 20, 0, GenesisVdpDebugApi.MaxSprites);
+			var snapshot = GenesisVdpDebugApi.ReadSnapshot(scanline, includeHscrollWrites)
+				?? throw new InvalidOperationException("No Mega Drive VDP snapshot is ready. Let the game render a frame and try again.");
+			var state = snapshot.State;
+
+			JsonArray sprites = new();
+			int end = Math.Min(offset + count, snapshot.Sprites.Length);
+			for(int i = offset; i < end; i++) {
+				var sprite = snapshot.Sprites.Span[i];
+				JsonObject entry = MakeGenesisVdpSprite(i, sprite.Y, sprite.SizeLink, sprite.Attributes, sprite.X);
+				entry["cache"] = new JsonObject {
+					["y_raw"] = sprite.CachedY,
+					["width_tiles"] = GenesisVdpSpriteFields.WidthTiles(sprite.CachedSizeLink),
+					["height_tiles"] = GenesisVdpSpriteFields.HeightTiles(sprite.CachedSizeLink),
+					["link"] = GenesisVdpSpriteFields.Link(sprite.CachedSizeLink)
+				};
+				sprites.Add((JsonNode)entry);
+			}
+
+			JsonObject result = new() {
+				["frame_count"] = state.FrameCount,
+				["width"] = state.Width,
+				["height"] = state.Height,
+				["h_counter"] = state.HCounter,
+				["v_counter"] = state.VCounter,
+				["sat_address"] = state.SatAddress,
+				["interlace_mode"] = state.InterlaceMode,
+				["total_sprites"] = state.SpriteCount,
+				["sprite_offset"] = offset,
+				["next_sprite_offset"] = count > 0 && end < snapshot.Sprites.Length ? JsonValue.Create(end) : null,
+				["sprites"] = sprites
+			};
+			if(scanline >= 0) {
+				JsonArray mappings = new();
+				foreach(var mapping in snapshot.Mappings.Span) {
+					JsonObject entry = MakeGenesisVdpSprite(mapping.Index, mapping.Y, mapping.SizeLink, mapping.Attributes, mapping.X);
+					entry["sat_address"] = mapping.SatAddress;
+					mappings.Add((JsonNode)entry);
+				}
+				result["scanline"] = scanline;
+				result["mapping_fetches"] = mappings;
+				var hscroll = snapshot.Hscroll;
+				result["hscroll_fetch"] = hscroll.Captured != 0 ? new JsonObject {
+					["mode"] = hscroll.Mode,
+					["vram_mode"] = hscroll.VramMode,
+					["h_counter"] = hscroll.HCounter,
+					["table_address"] = hscroll.TableAddress,
+					["bg_a_address"] = hscroll.EntryAddress,
+					["bg_b_address"] = hscroll.EntryAddress + 2,
+					["bg_a_raw"] = hscroll.RawA,
+					["bg_b_raw"] = hscroll.RawB,
+					["bg_a_frame_end_raw"] = hscroll.FrameEndRawA,
+					["bg_b_frame_end_raw"] = hscroll.FrameEndRawB
+				} : null;
+			}
+			if(includeHscrollWrites) {
+				JsonArray changes = new();
+				foreach(var change in snapshot.HscrollWrites.Span) {
+					changes.Add((JsonNode)MakeGenesisHscrollWrite(change));
+				}
+				result["hscroll_writes"] = changes;
+				result["hscroll_writes_truncated"] = snapshot.HscrollWritesTruncated;
+			}
+			return result;
+		}
+
+		private static JsonObject MakeGenesisHscrollWrite(GenesisVdpDebugHscrollWrite change)
+		{
+			JsonObject entry = new() {
+				["address"] = change.Address,
+				["before_raw"] = change.Before,
+				["after_raw"] = change.After,
+				["v_counter"] = change.VCounter,
+				["h_counter"] = change.HCounter,
+				["during_vdp_scanline"] = change.InScanline != 0,
+				["before_fetch"] = change.BeforeFetch != 0,
+				["source"] = change.Source switch {
+					GenesisVdpDebugWriteSource.CpuDataPort => "cpu_data_port",
+					GenesisVdpDebugWriteSource.DmaLoad => "dma_load",
+					GenesisVdpDebugWriteSource.DmaFill => "dma_fill",
+					GenesisVdpDebugWriteSource.DmaCopy => "dma_copy",
+					_ => "unknown_fifo"
+				}
+			};
+			if(change.Source is GenesisVdpDebugWriteSource.DmaLoad or GenesisVdpDebugWriteSource.DmaCopy) {
+				entry["source_address"] = change.SourceAddress;
+			}
+			return entry;
+		}
+
+		private static JsonObject MakeGenesisVdpSprite(int index, ushort y, ushort sizeLink, ushort attributes, ushort x)
+		{
+			return new JsonObject {
+				["index"] = index,
+				["x"] = GenesisVdpSpriteFields.XOnScreen(x),
+				["x_raw"] = x,
+				["y_raw"] = y,
+				["size_link_raw"] = sizeLink,
+				["attributes_raw"] = attributes,
+				["width_tiles"] = GenesisVdpSpriteFields.WidthTiles(sizeLink),
+				["height_tiles"] = GenesisVdpSpriteFields.HeightTiles(sizeLink),
+				["link"] = GenesisVdpSpriteFields.Link(sizeLink),
+				["tile"] = GenesisVdpSpriteFields.Tile(attributes),
+				["palette"] = GenesisVdpSpriteFields.Palette(attributes),
+				["priority"] = GenesisVdpSpriteFields.Priority(attributes)
 			};
 		}
 

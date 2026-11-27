@@ -36,6 +36,7 @@ void EmuSettings::CopySettings(EmuSettings& src)
 	SetSmsConfig(src._sms);
 	SetGbaConfig(src._gba);
 	SetWsConfig(src._ws);
+	SetGenesisConfig(src._genesis);
 
 	_shader = src._shader;
 }
@@ -137,6 +138,13 @@ void EmuSettings::Serialize(Serializer& s)
 			SV(_pce.Port1SubPorts[4].Type);
 			break;
 
+		case ConsoleType::Genesis:
+			SV(_genesis.RamPowerOnState);
+			SV(_genesis.Port1.Type);
+			SV(_genesis.Port2.Type);
+			SV(_genesis.Region);
+			SV(_genesis.Model);
+			break;
 		case ConsoleType::Sms:
 			SV(_sms.RamPowerOnState);
 			SV(_sms.Port1.Type);
@@ -342,6 +350,16 @@ WsConfig& EmuSettings::GetWsConfig()
 	return _ws;
 }
 
+void EmuSettings::SetGenesisConfig(GenesisConfig& config)
+{
+	_genesis = config;
+}
+
+GenesisConfig& EmuSettings::GetGenesisConfig()
+{
+	return _genesis;
+}
+
 void EmuSettings::SetGameConfig(GameConfig& config)
 {
 	_game = config;
@@ -492,6 +510,8 @@ OverscanDimensions EmuSettings::GetOverscan()
 		case ConsoleType::Snes: return _snes.Overscan;
 		case ConsoleType::Nes: return _emu->GetRegion() == ConsoleRegion::Ntsc ? _nes.NtscOverscan : _nes.PalOverscan;
 		case ConsoleType::PcEngine: return _pce.Overscan;
+		case ConsoleType::Genesis:
+			return _emu->GetRegion() == ConsoleRegion::Pal ? _genesis.PalOverscan : _genesis.NtscOverscan;
 		case ConsoleType::Sms:
 			if(romFormat == RomFormat::ColecoVision) {
 				return { 0, 0, 24, 24 };
@@ -617,6 +637,7 @@ bool EmuSettings::HasRandomPowerOnState(ConsoleType consoleType)
 		case ConsoleType::Nes: return _nes.RamPowerOnState == RamState::Random || _nes.RandomizeCpuPpuAlignment || _nes.RandomizeMapperPowerOnState;
 		case ConsoleType::PcEngine: return _pce.RamPowerOnState == RamState::Random || _pce.EnableRandomPowerOnState;
 		case ConsoleType::Sms: return _sms.RamPowerOnState == RamState::Random;
+		case ConsoleType::Genesis: return _genesis.RamPowerOnState == RamState::Random;
 		case ConsoleType::Gba: return _gba.RamPowerOnState == RamState::Random;
 	}
 

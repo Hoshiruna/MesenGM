@@ -8,6 +8,7 @@ using Mesen.Debugger.Controls;
 using Mesen.Debugger.Utilities;
 using Mesen.Debugger.ViewModels;
 using Mesen.Interop;
+using Mesen.Localization;
 using System;
 using System.ComponentModel;
 
@@ -17,6 +18,7 @@ namespace Mesen.Debugger.Windows
 	{
 		private TilemapViewerViewModel _model;
 		private PictureViewer _picViewer;
+		internal bool IsGenesisViewer => _model.IsGenesis;
 
 		[Obsolete("For designer only")]
 		public TilemapViewerWindow() : this(CpuType.Snes) { }
@@ -38,6 +40,14 @@ namespace Mesen.Debugger.Windows
 
 			MouseViewerModelEvents.InitEvents(_model, this, _picViewer);
 			_picViewer.Source = _model.ViewerBitmap;
+			if(IsGenesisViewer) {
+				Title = ResourceHelper.GetViewLabel(nameof(TilemapViewerWindow), "wndGenesisTitle");
+				_picViewer.PositionClicked += (_, e) => {
+					if(e.Properties.IsLeftButtonPressed && _model.SelectGenesisSprite(e.Position)) {
+						e.Handled = true;
+					}
+				};
+			}
 		}
 
 		private void InitializeComponent()
@@ -54,6 +64,9 @@ namespace Mesen.Debugger.Windows
 			}
 
 			_model.RefreshData();
+			if(IsGenesisViewer) {
+				GenesisViewer.StartRefreshTimer(this, _model.Config.RefreshTiming, _model.RefreshData);
+			}
 		}
 
 		protected override void OnClosing(WindowClosingEventArgs e)
@@ -70,7 +83,9 @@ namespace Mesen.Debugger.Windows
 
 		public void ProcessNotification(NotificationEventArgs e)
 		{
-			ToolRefreshHelper.ProcessNotification(this, e, _model.RefreshTiming, _model, _model.RefreshData);
+			if(_model.RefreshTiming is { } timing) {
+				ToolRefreshHelper.ProcessNotification(this, e, timing, _model, _model.RefreshData);
+			}
 		}
 	}
 }

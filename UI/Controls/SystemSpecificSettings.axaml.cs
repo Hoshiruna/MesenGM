@@ -65,6 +65,11 @@ namespace Mesen.Controls
 			NavigateTo(ConfigWindowTab.Sms);
 		}
 
+		private void OnClickGenesis(object sender, RoutedEventArgs e)
+		{
+			NavigateTo(ConfigWindowTab.Genesis);
+		}
+
 		private void OnClickWs(object sender, RoutedEventArgs e)
 		{
 			NavigateTo(ConfigWindowTab.Ws);
@@ -138,6 +143,18 @@ namespace Mesen.Controls
 								ConfigType.Emulation => SmsConfigTab.Emulation,
 								ConfigType.Input => SmsConfigTab.Input,
 								_ or ConfigType.Video => SmsConfigTab.Video,
+							};
+						}
+						break;
+
+					case ConfigWindowTab.Genesis:
+						if(cfg.Genesis != null) {
+							cfg.Genesis.SelectedTab = ConfigType switch {
+								ConfigType.Audio => GenesisConfigTab.Audio,
+								ConfigType.Emulation => GenesisConfigTab.Emulation,
+								ConfigType.Input => GenesisConfigTab.Input,
+								ConfigType.Video => GenesisConfigTab.Video,
+								_ => GenesisConfigTab.General,
 							};
 						}
 						break;

@@ -32,6 +32,7 @@ private:
 	CvConfig _cv;
 	GbaConfig _gba;
 	WsConfig _ws;
+	GenesisConfig _genesis;
 
 	atomic<uint32_t> _flags;
 	atomic<uint64_t> _debuggerFlags;
@@ -101,6 +102,9 @@ public:
 
 	void SetWsConfig(WsConfig& config);
 	WsConfig& GetWsConfig();
+
+	void SetGenesisConfig(GenesisConfig& config);
+	GenesisConfig& GetGenesisConfig();
 
 	void SetGameConfig(GameConfig& config);
 	GameConfig& GetGameConfig();

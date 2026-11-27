@@ -23,6 +23,8 @@
 #include "Core/Debugger/TraceLogFileSaver.h"
 #include "Core/Debugger/FrozenAddressManager.h"
 #include "Core/Gameboy/GbTypes.h"
+#include "Core/Genesis/GenesisConsole.h"
+#include "Core/Genesis/GenesisVdp.h"
 #include "Utilities/StringUtilities.h"
 
 extern unique_ptr<Emulator> _emu;
@@ -191,6 +193,46 @@ extern "C"
 	DllExport void __stdcall GetPpuState(BaseState& state, CpuType cpuType)
 	{
 		WithDebugger(void, GetPpuState(state, cpuType));
+	}
+
+	DllExport bool __stdcall GetGenesisVdpDiagnosticSnapshot(int32_t scanline, GenesisVdpDebugState& state, GenesisVdpDebugSprite* sprites, GenesisVdpDebugMapping* mappings, GenesisVdpDebugHscroll& hscroll, GenesisVdpDebugHscrollWrites* writes)
+	{
+		auto console = _emu->GetConsole();
+		if(!console || console->GetConsoleType() != ConsoleType::Genesis) {
+			return false;
+		}
+		auto vdp = static_cast<GenesisConsole*>(console.get())->GetVdp();
+		return vdp && vdp->GetDebugSnapshot(scanline, state, sprites, mappings, hscroll, writes);
+	}
+
+	DllExport bool __stdcall GetGenesisVdpGraphics(GenesisVdpDebugState& state, GenesisVdpDebugGraphics& graphics, GenesisVdpDebugSprite* sprites, uint16_t* vram, uint32_t* palette)
+	{
+		auto console = _emu->GetConsole();
+		if(!console || console->GetConsoleType() != ConsoleType::Genesis) {
+			return false;
+		}
+		auto vdp = static_cast<GenesisConsole*>(console.get())->GetVdp();
+		return vdp && vdp->GetDebugGraphics(state, graphics, sprites, vram, palette);
+	}
+
+	DllExport bool __stdcall GetGenesisVdpTiles(GenesisVdpDebugState& state, GenesisVdpDebugGraphics& graphics, uint16_t* vram, uint32_t* palette, uint32_t* cram)
+	{
+		auto console = _emu->GetConsole();
+		if(!console || console->GetConsoleType() != ConsoleType::Genesis) {
+			return false;
+		}
+		auto vdp = static_cast<GenesisConsole*>(console.get())->GetVdp();
+		return vdp && vdp->GetDebugGraphics(state, graphics, nullptr, vram, palette, cram);
+	}
+
+	DllExport bool __stdcall GetGenesisVdpPaletteSnapshot(uint32_t& frameCount, uint32_t* palette, uint32_t* cram)
+	{
+		auto console = _emu->GetConsole();
+		if(!console || console->GetConsoleType() != ConsoleType::Genesis) {
+			return false;
+		}
+		auto vdp = static_cast<GenesisConsole*>(console.get())->GetVdp();
+		return vdp && vdp->GetDebugPalette(frameCount, palette, cram);
 	}
 
 	DllExport void __stdcall SetCpuState(BaseState& state, CpuType cpuType)

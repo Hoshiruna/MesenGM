@@ -180,7 +180,7 @@ bool DirectSoundManager::InitializeDirectSound(uint32_t sampleRate, bool isStere
 
 	_playing = false;
 
-	return true;
+	return ClearSecondaryBuffer();
 }
 
 void DirectSoundManager::Release()
@@ -188,6 +188,9 @@ void DirectSoundManager::Release()
 	_playing = false;
 	_needReset = false;
 	_lastWriteOffset = 0;
+	_lastPlayOffset = 0;
+	_minimumLatency = 0;
+	ResetStats();
 
 	if(_secondaryBuffer) {
 		_secondaryBuffer->Release();
@@ -205,34 +208,44 @@ void DirectSoundManager::Release()
 	}
 }
 
-void DirectSoundManager::ClearSecondaryBuffer()
+bool DirectSoundManager::ClearSecondaryBuffer()
 {
 	unsigned char* bufferPtr;
 	DWORD bufferSize;
-	_secondaryBuffer->Lock(0, 0, (void**)&bufferPtr, (DWORD*)&bufferSize, nullptr, 0, DSBLOCK_ENTIREBUFFER);
+	if(FAILED(_secondaryBuffer->Lock(0, 0, (void**)&bufferPtr, &bufferSize, nullptr, nullptr, DSBLOCK_ENTIREBUFFER))) {
+		return false;
+	}
 	memset(bufferPtr, 0, bufferSize);
-	_secondaryBuffer->Unlock((void*)bufferPtr, bufferSize, nullptr, 0);
-
-	_secondaryBuffer->SetCurrentPosition(0);
+	if(FAILED(_secondaryBuffer->Unlock(bufferPtr, bufferSize, nullptr, 0)) || FAILED(_secondaryBuffer->SetCurrentPosition(0))) {
+		return false;
+	}
 	_lastWriteOffset = 0;
+	_lastPlayOffset = 0;
+	return true;
 }
 
-void DirectSoundManager::CopyToSecondaryBuffer(uint8_t* data, uint32_t size)
+void DirectSoundManager::CopyToSecondaryBuffer(const uint8_t* data, uint32_t size)
 {
 	uint8_t* bufferPtrA;
 	uint8_t* bufferPtrB;
 	DWORD bufferASize;
 	DWORD bufferBSize;
 
-	_secondaryBuffer->Lock(_lastWriteOffset, size, (void**)&bufferPtrA, (DWORD*)&bufferASize, (void**)&bufferPtrB, (DWORD*)&bufferBSize, 0);
-	_lastWriteOffset = (_lastWriteOffset + size) % _bufferSize;
+	if(FAILED(_secondaryBuffer->Lock(_lastWriteOffset, size, (void**)&bufferPtrA, &bufferASize, (void**)&bufferPtrB, &bufferBSize, 0))) {
+		_needReset = true;
+		return;
+	}
 
 	memcpy(bufferPtrA, data, bufferASize);
 	if(bufferPtrB && bufferBSize > 0) {
 		memcpy(bufferPtrB, data + bufferASize, bufferBSize);
 	}
 
-	_secondaryBuffer->Unlock((void*)bufferPtrA, bufferASize, (void*)bufferPtrB, bufferBSize);
+	if(FAILED(_secondaryBuffer->Unlock(bufferPtrA, bufferASize, bufferPtrB, bufferBSize))) {
+		_needReset = true;
+		return;
+	}
+	_lastWriteOffset = (_lastWriteOffset + size) % _bufferSize;
 }
 
 void DirectSoundManager::Pause()
@@ -250,8 +263,9 @@ void DirectSoundManager::Stop()
 	}
 
 	if(_secondaryBuffer) {
-		_secondaryBuffer->Stop();
-		ClearSecondaryBuffer();
+		if(FAILED(_secondaryBuffer->Stop()) || !ClearSecondaryBuffer()) {
+			_needReset = true;
+		}
 	}
 
 	_playing = false;
@@ -260,36 +274,54 @@ void DirectSoundManager::Stop()
 
 void DirectSoundManager::Play()
 {
-	if(_secondaryBuffer) {
-		_secondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+	if(_secondaryBuffer && SUCCEEDED(_secondaryBuffer->Play(0, 0, DSBPLAY_LOOPING))) {
 		_playing = true;
 	}
 }
 
-void DirectSoundManager::ValidateWriteCursor(DWORD safeWriteCursor)
+uint32_t DirectSoundManager::GetBufferDistance(DWORD from, DWORD to) const
 {
-	int32_t writeGap = _lastWriteOffset - safeWriteCursor;
-	if(writeGap < 0 && writeGap >= -10000) {
-		_bufferUnderrunEventCount++;
-		_lastWriteOffset = safeWriteCursor;
+	return (to + _bufferSize - from) % _bufferSize;
+}
+
+uint32_t DirectSoundManager::GetMinimumLatency() const
+{
+	//Use the settings screen's recommended minimum until the device reports a write lead.
+	return _minimumLatency > 0 ? _minimumLatency : 55;
+}
+
+AudioStatistics DirectSoundManager::GetStatistics()
+{
+	AudioStatistics stats = BaseSoundManager::GetStatistics();
+	stats.MinimumLatency = GetMinimumLatency();
+	return stats;
+}
+
+void DirectSoundManager::RecoverFromUnderrun(DWORD playCursor, uint32_t safeLead)
+{
+	uint32_t queuedBytes = GetBufferDistance(_lastPlayOffset, _lastWriteOffset);
+	uint32_t playAdvance = GetBufferDistance(_lastPlayOffset, playCursor);
+	_lastPlayOffset = playCursor;
+	if(_playing && playAdvance + safeLead > queuedBytes) {
+		//The driver has passed the queued audio. Clear old samples before restarting.
+		uint32_t underruns = _bufferUnderrunEventCount + 1;
+		Stop();
+		_bufferUnderrunEventCount = underruns;
 	}
 }
 
 void DirectSoundManager::ProcessEndOfFrame()
 {
-	DWORD currentPlayCursor;
-	DWORD safeWriteCursor;
-	_secondaryBuffer->GetCurrentPosition(&currentPlayCursor, &safeWriteCursor);
-	ValidateWriteCursor(safeWriteCursor);
-
-	_secondaryBuffer->SetFrequency((DWORD)(_sampleRate));
-
-	ProcessLatency(currentPlayCursor, _lastWriteOffset);
+	DWORD playCursor;
+	if(_playing && SUCCEEDED(_secondaryBuffer->GetCurrentPosition(&playCursor, nullptr))) {
+		ProcessLatency(playCursor, _lastWriteOffset);
+	}
 
 	AudioConfig& cfg = _emu->GetSettings()->GetAudioConfig();
 	SetAudioDevice(cfg.AudioDevice);
 
-	if(_averageLatency > 0 && !_emu->GetSettings()->IsFastForward() && std::abs(_averageLatency - cfg.AudioLatency) > 50) {
+	uint32_t targetLatency = std::max(cfg.AudioLatency, GetMinimumLatency());
+	if(_averageLatency > 0 && !_emu->GetSettings()->IsFastForward() && std::abs(_averageLatency - targetLatency) > 50) {
 		//Latency is way off (over 50ms gap), stop audio & start again
 		Stop();
 	}
@@ -297,25 +329,46 @@ void DirectSoundManager::ProcessEndOfFrame()
 
 void DirectSoundManager::PlayBuffer(int16_t* soundBuffer, uint32_t sampleCount, uint32_t sampleRate, bool isStereo)
 {
-	uint32_t bytesPerSample = 2 * (isStereo ? 2 : 1);
+	uint32_t bytesPerFrame = sizeof(int16_t) * (isStereo ? 2 : 1);
 	uint32_t latency = _emu->GetSettings()->GetAudioConfig().AudioLatency;
-	if(_sampleRate != sampleRate || _isStereo != isStereo || _needReset || latency != _previousLatency) {
+	if(!_secondaryBuffer || _sampleRate != sampleRate || _isStereo != isStereo || _needReset || latency != _previousLatency) {
 		_previousLatency = latency;
 		Release();
-		InitializeDirectSound(sampleRate, isStereo);
-		_secondaryBuffer->SetFrequency(sampleRate);
+		if(!InitializeDirectSound(sampleRate, isStereo)) {
+			Release();
+			return;
+		}
 	}
 
-	DWORD currentPlayCursor, safeWriteCursor;
-	_secondaryBuffer->GetCurrentPosition(&currentPlayCursor, &safeWriteCursor);
-	ValidateWriteCursor(safeWriteCursor);
+	DWORD playCursor, safeWriteCursor;
+	if(FAILED(_secondaryBuffer->GetCurrentPosition(&playCursor, &safeWriteCursor))) {
+		_needReset = true;
+		return;
+	}
+	uint32_t safeLead = GetBufferDistance(playCursor, safeWriteCursor);
+	if(_playing && safeLead > 0 && sampleCount > 0) {
+		//Reserve two audio blocks beyond the device write cursor for scheduling jitter.
+		uint32_t minimumBytes = std::min(_bufferSize / 2, safeLead + 2 * sampleCount * bytesPerFrame);
+		uint32_t bytesPerSecond = sampleRate * bytesPerFrame;
+		_minimumLatency = (minimumBytes * 1000 + bytesPerSecond - 1) / bytesPerSecond;
+	}
+	RecoverFromUnderrun(playCursor, safeLead);
+	if(_needReset) {
+		return;
+	}
 
-	uint32_t soundBufferSize = sampleCount * bytesPerSample;
-	CopyToSecondaryBuffer((uint8_t*)soundBuffer, soundBufferSize);
+	uint32_t queuedBytes = GetBufferDistance(_lastPlayOffset, _lastWriteOffset);
+	uint32_t freeFrames = (_bufferSize - queuedBytes) / bytesPerFrame;
+	//Leave one frame free so coincident cursors always mean an empty buffer.
+	if(sampleCount > 0 && freeFrames > 1) {
+		uint32_t writeFrames = std::min(sampleCount, freeFrames - 1);
+		CopyToSecondaryBuffer((const uint8_t*)soundBuffer, writeFrames * bytesPerFrame);
+	}
 
-	if(!_playing) {
-		DWORD byteLatency = (int32_t)((float)(sampleRate * latency) / 1000.0f * bytesPerSample);
-		if(_lastWriteOffset >= byteLatency / 2) {
+	if(!_playing && !_needReset) {
+		uint32_t targetLatency = std::max(latency, GetMinimumLatency());
+		uint32_t targetBytes = (sampleRate * targetLatency / 1000) * bytesPerFrame;
+		if(GetBufferDistance(_lastPlayOffset, _lastWriteOffset) >= targetBytes) {
 			Play();
 		}
 	}

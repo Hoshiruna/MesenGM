@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Resources>
 	<Forms>
+		<Form ID="TilemapViewerWindow">
+			<Control ID="wndGenesisTitle">VDP 查看器</Control>
+			<Control ID="tabGenesisSprites">精灵</Control>
+			<Control ID="lblGenesisSpriteTable">精灵表</Control>
+			<Control ID="lblGenesisSelectedSprite">选中的精灵</Control>
+			<Control ID="lblGenesisWaiting">正在等待完整帧…</Control>
+			<Control ID="lblGenesisFrame">第 {0} 帧</Control>
+			<Control ID="lblGenesisSpriteFrame">第 {0} 帧 · 帧末精灵表预览</Control>
+		</Form>
 		<Form ID="MainMenuView">
 			<Control ID="mnuFile">文件(_F)</Control>
 			<Control ID="mnuGame">游戏(_G)</Control>
@@ -8,6 +17,26 @@
 			<Control ID="mnuTools">工具(_T)</Control>
 			<Control ID="mnuDebug">调试(_D)</Control>
 			<Control ID="mnuHelp">帮助(_H)</Control>
+		</Form>
+
+		<Form ID="GenesisConfigView">
+			<Control ID="tpgGeneral">常规</Control>
+			<Control ID="tpgAudio">音频</Control>
+			<Control ID="tpgEmulation">模拟</Control>
+			<Control ID="tpgInput">输入</Control>
+			<Control ID="tpgVideo">视频</Control>
+			<Control ID="grpControllers">手柄</Control>
+			<Control ID="lblController1">端口 1：</Control>
+			<Control ID="lblController2">端口 2：</Control>
+			<Control ID="lblRegion">地区：</Control>
+			<Control ID="grpVolume">音量</Control>
+			<Control ID="lblYm2612Volume">YM2612（FM）</Control>
+			<Control ID="lblPsgVolume">PSG</Control>
+			<Control ID="lblDeveloperSettings">开发者设置</Control>
+			<Control ID="lblRamPowerOnState">RAM 上电初值：</Control>
+			<Control ID="lblOverscan">画面裁切</Control>
+			<Control ID="lblOverscanNtsc">NTSC</Control>
+			<Control ID="lblOverscanPal">PAL</Control>
 		</Form>
 
 		<Form ID="ConfigWindow">
@@ -22,6 +51,7 @@
 			<Control ID="tabGba">GBA</Control>
 			<Control ID="tabPcEngine">PC Engine</Control>
 			<Control ID="tabSms">SMS</Control>
+			<Control ID="tabGenesis">Mega Drive</Control>
 			<Control ID="tabWs">WonderSwan</Control>
 			<Control ID="tabOtherConsoles">其他系统</Control>
 			<Control ID="tabPreferences">首选项</Control>
@@ -39,6 +69,7 @@
 			<Control ID="lblGba">GBA</Control>
 			<Control ID="lblPcEngine">PC Engine</Control>
 			<Control ID="lblSms">SMS</Control>
+			<Control ID="lblGenesis">Mega Drive</Control>
 			<Control ID="lblWs">WonderSwan</Control>
 		</Form>
 
@@ -218,6 +249,9 @@
 	</Forms>
 
 	<Messages>
+		<Message ID="GenesisViewerWaitingForFrame">正在等待完整帧…</Message>
+		<Message ID="GenesisTileViewerFrame">第 {0} 帧 · VRAM {1} KiB · 8×{2} 图块</Message>
+		<Message ID="GenesisPaletteViewerFrame">第 {0} 帧 · CRAM</Message>
 		<Message ID="LastSession">上次会话</Message>
 		<Message ID="AutoSave">自动存档</Message>
 		<Message ID="SlotNumber">槽位 #{0}</Message>
@@ -274,7 +308,12 @@
 	</Messages>
 
 	<Enums>
+		<Enum ID="ControllerType">
+			<Value ID="GenesisController">Mega Drive 三键手柄</Value>
+			<Value ID="GenesisController6Buttons">Mega Drive 六键手柄</Value>
+		</Enum>
 		<Enum ID="ActionType">
+			<Value ID="Genesis">Mega Drive</Value>
 			<Value ID="OpenMcpServer">MCP 服务器</Value>
 		</Enum>
 		<Enum ID="MesenTheme">

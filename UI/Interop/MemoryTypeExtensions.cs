@@ -125,6 +125,15 @@ namespace Mesen.Interop
 				case MemoryType.WsPort:
 					return CpuType.Ws;
 
+				case MemoryType.GenesisM68KRam:
+				case MemoryType.GenesisVdpVram:
+				case MemoryType.GenesisCartridgeRom:
+				case MemoryType.GenesisCartridgeRam:
+					return CpuType.GenesisM68K;
+
+				case MemoryType.GenesisZ80Ram:
+					return CpuType.GenesisZ80;
+
 				default:
 					throw new NotImplementedException("Unsupported cpu type");
 			}
@@ -548,6 +557,12 @@ namespace Mesen.Interop
 				MemoryType.WsBootRom => "BOOT",
 				MemoryType.WsInternalEeprom => "IEEPROM",
 				MemoryType.WsPort => "PORT",
+
+				MemoryType.GenesisM68KRam => "68K RAM",
+				MemoryType.GenesisZ80Ram => "Z80 RAM",
+				MemoryType.GenesisVdpVram => "VRAM",
+				MemoryType.GenesisCartridgeRom => "ROM",
+				MemoryType.GenesisCartridgeRam => "SRAM",
 
 				MemoryType.None => "n/a",
 
