@@ -128,8 +128,8 @@ private:
 	double _frameDelay = 0;
 
 	uint32_t _autoSaveStateFrameCounter = 0;
-	int32_t _stopCode = 0;
-	bool _stopRequested = false;
+	atomic<int32_t> _stopCode = 0;
+	atomic<bool> _stopRequested = false;
 
 	//For VS DualSystem, or when running e.g 2 Game Boys at once, this is used to
 	//disable all debugger hooks and memory registration for one of the 2 consoles.
@@ -258,6 +258,7 @@ public:
 	bool IsEmulationThread();
 
 	int32_t GetStopCode() { return _stopCode; }
+	bool IsStopRequested() { return _stopRequested; }
 	void SetStopCode(int32_t stopCode);
 
 	void RegisterMemory(MemoryType type, void* memory, uint32_t size);

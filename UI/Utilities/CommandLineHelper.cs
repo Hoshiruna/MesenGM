@@ -29,19 +29,25 @@ public class CommandLineHelper
 	public bool LoadLastSessionRequested { get; private set; }
 	public string? MovieToRecord { get; private set; } = null;
 	public int TestRunnerTimeout { get; private set; } = 100;
+	internal bool EnableStdout { get; private set; }
+	internal IReadOnlyList<string> ErrorMessages => _errorMessages;
 	public List<string> LuaScriptsToLoad { get; private set; } = new();
 	public List<string> FilesToLoad { get; private set; } = new();
 
-	private List<string> _errorMessages = new();
+	private readonly List<string> _errorMessages = new();
 
-	public CommandLineHelper(string[] args, bool forStartup)
+	public CommandLineHelper(string[] args, bool forStartup, bool forTestRunner = false)
 	{
-		ProcessCommandLineArgs(args, forStartup);
+		ProcessCommandLineArgs(args, forTestRunner);
 	}
 
-	private void ProcessCommandLineArgs(string[] args, bool forStartup)
+	private void ProcessCommandLineArgs(string[] args, bool forTestRunner)
 	{
 		foreach(string arg in args) {
+			if(forTestRunner && IsTestRunnerSwitch(arg)) {
+				continue;
+			}
+
 			string absPath;
 			if(Path.IsPathRooted(arg)) {
 				absPath = arg;
@@ -61,7 +67,12 @@ public class CommandLineHelper
 					case "noaudio": NoAudio = true; break;
 					case "noinput": NoInput = true; break;
 					case "fullscreen": Fullscreen = true; break;
-					case "enablestdout": ConfigApi.SetEmulationFlag(EmulationFlags.OutputToStdout, true); break;
+					case "enablestdout":
+						EnableStdout = true;
+						if(!forTestRunner) {
+							ConfigApi.SetEmulationFlag(EmulationFlags.OutputToStdout, true);
+						}
+						break;
 					case "donotsavesettings": ConfigManager.DisableSaveSettings = true; break;
 					case "loadlastsession": LoadLastSessionRequested = true; break;
 					default:
@@ -82,18 +93,17 @@ public class CommandLineHelper
 								moviePath += "." + FileDialogHelper.MesenMovieExt;
 							}
 							MovieToRecord = moviePath;
-						} else if(switchArg.StartsWith("timeout=")) {
-							string[] values = switchArg.Split('=');
-							if(values.Length <= 1) {
-								//invalid
-								continue;
-							}
-							if(int.TryParse(values[1], out int timeout)) {
+						} else if(switchArg.StartsWith("timeout=") || (forTestRunner && switchArg == "timeout")) {
+							if(switchArg.StartsWith("timeout=") && int.TryParse(switchArg.AsSpan("timeout=".Length), out int timeout) && timeout > 0) {
 								TestRunnerTimeout = timeout;
+							} else if(forTestRunner) {
+								_errorMessages.Add($"Invalid timeout '{arg}'. Use --timeout=<positive seconds>.");
 							}
 						} else {
 							if(!ConfigManager.ProcessSwitch(switchArg)) {
-								_errorMessages.Add(ResourceHelper.GetMessage("InvalidArgument", arg));
+								bool missingFile = forTestRunner && arg.StartsWith('/') && Path.IsPathFullyQualified(arg)
+									&& (arg.IndexOf('/', 1) >= 0 || (!arg.Contains('=') && Path.HasExtension(arg)));
+								_errorMessages.Add(ResourceHelper.GetMessage(missingFile ? "FileNotFound" : "InvalidArgument", arg));
 							}
 						}
 						break;
@@ -125,7 +135,46 @@ public class CommandLineHelper
 
 	public static bool IsTestRunner(string[] args)
 	{
-		return args.Any(arg => CommandLineHelper.ConvertArg(arg).ToLowerInvariant() == "testrunner");
+		return args.Any(IsTestRunnerSwitch);
+	}
+
+	private static bool IsTestRunnerSwitch(string arg)
+	{
+		return ConvertArg(arg).Equals("testrunner", StringComparison.OrdinalIgnoreCase);
+	}
+
+	internal static string[] ExtractTestRunnerDataFolder(string[] args, out string? dataFolder)
+	{
+		const string option = "--dataDir";
+		const string inlineOption = option + "=";
+		List<string> remainingArgs = new();
+		dataFolder = null;
+
+		for(int i = 0; i < args.Length; i++) {
+			string arg = args[i];
+			string folder;
+			if(arg.Equals(option, StringComparison.OrdinalIgnoreCase)) {
+				if(i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal)) {
+					throw new ArgumentException("Specify a directory after --dataDir.");
+				}
+				folder = args[++i];
+			} else if(arg.StartsWith(inlineOption, StringComparison.OrdinalIgnoreCase)) {
+				folder = arg.Substring(inlineOption.Length);
+			} else {
+				remainingArgs.Add(arg);
+				continue;
+			}
+
+			if(string.IsNullOrWhiteSpace(folder)) {
+				throw new ArgumentException("Specify a directory after --dataDir.");
+			}
+			if(dataFolder != null) {
+				throw new ArgumentException("Specify --dataDir only once.");
+			}
+			dataFolder = Path.GetFullPath(folder, Program.OriginalFolder);
+		}
+
+		return remainingArgs.ToArray();
 	}
 
 	public void ProcessPostLoadCommandSwitches(MainWindow wnd)
@@ -186,7 +235,9 @@ public class CommandLineHelper
 --fullscreen - Start in fullscreen mode
 --loadLastSession - Resumes the game in the state it was left in when it was last played.
 --recordMovie=""filename.mmo"" - Start recording a movie after the specified game is loaded.
---testRunner [lua script] [rom file] - Runs a Lua script in headless mode (use emu.exit(...) to stop execution)
+--testRunner [lua scripts...] <rom file> - Runs a ROM and optional Lua scripts in headless mode. Use emu.exit(code) to stop.
+--dataDir <directory> - Uses a separate directory for test runner settings, saves, and debugger workspaces.
+--timeout=<seconds> - Sets the test runner time limit in positive whole seconds (default: 100)
 ";
 
 		result["General"] = general;

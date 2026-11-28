@@ -50,6 +50,10 @@ namespace Mesen
 				return 0;
 			}
 
+			if(CommandLineHelper.IsTestRunner(args)) {
+				return TestRunner.Run(args);
+			}
+
 			Environment.CurrentDirectory = ConfigManager.HomeFolder;
 
 			if(!File.Exists(ConfigManager.GetConfigFile())) {
@@ -69,10 +73,6 @@ namespace Mesen
 
 			//Extract core dll & other native dependencies
 			DependencyHelper.ExtractNativeDependencies(ConfigManager.HomeFolder);
-
-			if(CommandLineHelper.IsTestRunner(args)) {
-				return TestRunner.Run(args);
-			}
 
 			using SingleInstance instance = SingleInstance.Instance;
 			instance.Init(args);

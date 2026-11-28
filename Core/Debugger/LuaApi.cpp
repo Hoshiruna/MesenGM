@@ -134,6 +134,7 @@ int LuaApi::GetLibrary(lua_State* lua)
 
 		{ "reset", LuaApi::Reset },
 		{ "stop", LuaApi::Stop },
+		{ "exit", LuaApi::Stop },
 		{ "breakExecution", LuaApi::BreakExecution },
 		{ "resume", LuaApi::Resume },
 		{ "step", LuaApi::Step },

@@ -43,13 +43,15 @@ namespace Mesen.ViewModels
 			UpdateInfo? updateInfo = null;
 			try {
 				using(var client = new HttpClient()) {
-					string updateData = await client.GetStringAsync("");
+					string updateData = await client.GetStringAsync("https://github.com/Hoshiruna/MesenGM/releases/latest/download/latestversion.json");
 					updateInfo = (UpdateInfo?)JsonSerializer.Deserialize(updateData, typeof(UpdateInfo), MesenSerializerContext.Default);
 
 					if(
 						updateInfo == null ||
 						updateInfo.Files == null ||
-						updateInfo.Files.Where(f => f.DownloadUrl == null || (!f.DownloadUrl.StartsWith("https://github.com/nesdev-org/") && !f.DownloadUrl.StartsWith("https://github.com/SourMesen/"))).Count() > 0
+						updateInfo.Files.Any(f =>
+							f.DownloadUrl == null ||
+							!f.DownloadUrl.StartsWith("https://github.com/Hoshiruna/MesenGM/releases/download/", StringComparison.Ordinal))
 					) {
 						return null;
 					}

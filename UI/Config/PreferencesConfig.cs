@@ -222,6 +222,7 @@ namespace Mesen.Config
 		public void ApplyConfig()
 		{
 			UpdateFonts();
+			bool useFolderOverrides = !ConfigManager.UseDefaultDataFolders;
 
 			List<InteropShortcutKeyInfo> shortcutKeys = new List<InteropShortcutKeyInfo>();
 			foreach(ShortcutKeyInfo shortcutInfo in ShortcutKeys) {
@@ -247,9 +248,9 @@ namespace Mesen.Config
 				ShowTurboRewindIcons = ShowTurboRewindIcons,
 				DisableGameSelectionScreen = GameSelectionScreenMode == GameSelectionMode.Disabled,
 				HudSize = HudSize,
-				SaveFolderOverride = OverrideSaveDataFolder ? SaveDataFolder : "",
-				SaveStateFolderOverride = OverrideSaveStateFolder ? SaveStateFolder : "",
-				ScreenshotFolderOverride = OverrideScreenshotFolder ? ScreenshotFolder : "",
+				SaveFolderOverride = useFolderOverrides && OverrideSaveDataFolder ? SaveDataFolder : "",
+				SaveStateFolderOverride = useFolderOverrides && OverrideSaveStateFolder ? SaveStateFolder : "",
+				ScreenshotFolderOverride = useFolderOverrides && OverrideScreenshotFolder ? ScreenshotFolder : "",
 				RewindBufferSize = EnableRewind ? RewindBufferSize : 0,
 				AutoSaveStateDelay = EnableAutoSaveState ? AutoSaveStateDelay : 0
 			});

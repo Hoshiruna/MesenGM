@@ -452,7 +452,7 @@
 {
 	"name": "stop",
 	"category": "Emulation",
-	"description": "Stops the emulation and returns the specified exit code (when used with the --testRunner command line option).",
+	"description": "Stops emulation. In --testRunner mode, the Mesen process returns the specified exit code. emu.exit is an alias for this function.",
 	"parameters": [
 		{ "name": "exitCode", "type": "Int", "description": "The exit code that the Mesen process will return." }
 	]

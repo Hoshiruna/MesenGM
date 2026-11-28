@@ -20,14 +20,17 @@ ScriptManager::~ScriptManager()
 	_debugger->GetEmulator()->GetScriptHud()->ClearScreen();
 }
 
-int ScriptManager::LoadScript(string name, string path, string content, int32_t scriptId)
+int32_t ScriptManager::LoadScript(string name, string path, string content, int32_t scriptId, bool* loaded)
 {
 	DebugBreakHelper helper(_debugger);
 	auto lock = _scriptLock.AcquireSafe();
 
 	if(scriptId < 0) {
 		unique_ptr<ScriptHost> script(new ScriptHost(_nextScriptId++));
-		script->LoadScript(name, path, content, _debugger);
+		bool success = script->LoadScript(name, path, content, _debugger);
+		if(loaded) {
+			*loaded = success;
+		}
 		scriptId = script->GetScriptId();
 		_scripts.push_back(std::move(script));
 		_hasScript = true;
@@ -40,13 +43,28 @@ int ScriptManager::LoadScript(string name, string path, string content, int32_t 
 			//Send a ScriptEnded event before reloading the code
 			(*result)->ProcessEvent(EventType::ScriptEnded, _debugger->GetMainCpuType());
 
-			(*result)->LoadScript(name, path, content, _debugger);
+			bool success = (*result)->LoadScript(name, path, content, _debugger);
+			if(loaded) {
+				*loaded = success;
+			}
 			RefreshMemoryCallbackFlags();
 			return scriptId;
 		}
 	}
 
 	return -1;
+}
+
+void ScriptManager::SetErrorCallback(std::function<void(const string&, const string&)> callback)
+{
+	_errorCallback = std::move(callback);
+}
+
+void ScriptManager::ReportScriptError(const string& name, const string& message)
+{
+	if(_errorCallback) {
+		_errorCallback(name, message);
+	}
 }
 
 void ScriptManager::RemoveScript(int32_t scriptId)
