@@ -1,10 +1,10 @@
 # MCP and AI Assistance Disclaimer
 
-This disclaimer applies to the MCP server, bridge tooling, and AI-assisted debugging workflows used with Mesen Expanded.
+This disclaimer applies to the MCP server, bridge tooling, and AI-assisted debugging workflows used with MesenGM.
 
 ## Scope
 
-Mesen Expanded may be used together with local or third-party large language model (LLM) tools through the included MCP/debugger integration. This disclaimer covers:
+MesenGM may be used together with local or third-party large language model (LLM) tools through the included MCP/debugger integration. This disclaimer covers:
 
 - the built-in MCP/debugger interfaces
 - bridge tools used to connect external clients
@@ -35,11 +35,11 @@ To the maximum extent permitted by applicable law, the project maintainers shall
 - Data transmitted to or processed by third-party LLM services
 - Any reliance on information or suggestions provided by a connected LLM
 
-When you use the built-in MCP server in Mesen Expanded to connect the debugger to an LLM, you are deemed to assume all liability arising from the use of AI in that workflow.
+When you use the built-in MCP server in MesenGM to connect the debugger to an LLM, you are deemed to assume all liability arising from the use of AI in that workflow.
 
 ## Third-Party Services
 
-The MCP server facilitates communication with external LLM services that are not developed, operated, or endorsed by the Mesen Expanded project. The availability, behavior, and policies of these services are governed entirely by their respective providers.
+The MCP server facilitates communication with external LLM services that are not developed, operated, or endorsed by the MesenGM project. The availability, behavior, and policies of these services are governed entirely by their respective providers.
 
 ## No Endorsement
 
