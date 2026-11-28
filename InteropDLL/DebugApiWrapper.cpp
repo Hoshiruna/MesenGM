@@ -520,6 +520,19 @@ extern "C"
 		return WithTool(int32_t, GetScriptManager(), LoadScript(name, path, content, scriptId));
 	}
 
+	DllExport int32_t __stdcall LoadTestScript(char* name, char* path, char* content, bool& loaded)
+	{
+		loaded = false;
+		return WithTool(int32_t, GetScriptManager(), LoadScript(name, path, content, -1, &loaded));
+	}
+
+	DllExport void __stdcall SetScriptErrorCallback(void(__stdcall* callback)(const char*, const char*))
+	{
+		WithToolVoid(GetScriptManager(), SetErrorCallback([callback](const string& name, const string& message) {
+			callback(name.c_str(), message.c_str());
+		}));
+	}
+
 	DllExport void __stdcall RemoveScript(int32_t scriptId)
 	{
 		WithToolVoid(GetScriptManager(), RemoveScript(scriptId));

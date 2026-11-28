@@ -189,6 +189,12 @@ namespace Mesen.Interop
 		[DllImport(DllPath)] public static extern UInt32 GetProgramCounter(CpuType cpuType, [MarshalAs(UnmanagedType.I1)] bool getInstPc);
 
 		[DllImport(DllPath)] public static extern Int32 LoadScript([MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string path, [MarshalAs(UnmanagedType.LPUTF8Str)] string content, Int32 scriptId = -1);
+		[DllImport(DllPath)] internal static extern Int32 LoadTestScript([MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string path, [MarshalAs(UnmanagedType.LPUTF8Str)] string content, [MarshalAs(UnmanagedType.I1)] out bool loaded);
+
+		[UnmanagedFunctionPointer(CallingConvention.Winapi)]
+		internal delegate void ScriptErrorCallback([MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string message);
+		[DllImport(DllPath)] internal static extern void SetScriptErrorCallback(ScriptErrorCallback callback);
+
 		[DllImport(DllPath)] public static extern void RemoveScript(Int32 scriptId);
 
 		[DllImport(DllPath, EntryPoint = "GetScriptLog")] private static extern void GetScriptLogWrapper(Int32 scriptId, IntPtr outScriptLog, Int32 maxLength);

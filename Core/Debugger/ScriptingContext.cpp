@@ -137,6 +137,7 @@ void ScriptingContext::ProcessLuaError()
 		Log(errorMsg);
 	}
 	lua_pop(_lua, 1);
+	_debugger->GetScriptManager()->ReportScriptError(_scriptName, errorMsg);
 }
 
 void ScriptingContext::ExecutionCountHook(lua_State* lua)

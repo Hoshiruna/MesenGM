@@ -18,6 +18,7 @@ private:
 	bool _isCpuMemoryCallbackEnabled = false;
 	bool _isPpuMemoryCallbackEnabled = false;
 	vector<unique_ptr<ScriptHost>> _scripts;
+	std::function<void(const string&, const string&)> _errorCallback;
 
 	void RefreshMemoryCallbackFlags();
 
@@ -26,7 +27,9 @@ public:
 	~ScriptManager();
 
 	__forceinline bool HasScript() { return _hasScript; }
-	int32_t LoadScript(string name, string path, string content, int32_t scriptId);
+	int32_t LoadScript(string name, string path, string content, int32_t scriptId, bool* loaded = nullptr);
+	void SetErrorCallback(std::function<void(const string&, const string&)> callback);
+	void ReportScriptError(const string& name, const string& message);
 	void RemoveScript(int32_t scriptId);
 	string GetScriptLog(int32_t scriptId);
 	void ProcessEvent(EventType type, CpuType cpuType);

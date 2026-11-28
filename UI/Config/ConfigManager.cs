@@ -48,6 +48,14 @@ namespace Mesen.Config
 		public static string DefaultWaveFolder { get { return Path.Combine(HomeFolder, "Wave"); } }
 
 		public static bool DisableSaveSettings { get; internal set; }
+		internal static bool UseDefaultDataFolders { get; private set; }
+
+		internal static void UseTestRunnerDataFolder(string folder)
+		{
+			Directory.CreateDirectory(folder);
+			_homeFolder = folder;
+			UseDefaultDataFolders = true;
+		}
 
 		public static string GetConfigFile()
 		{
@@ -216,7 +224,7 @@ namespace Mesen.Config
 		public static string GetFolder(string defaultFolderName, string? overrideFolder, bool useOverride)
 		{
 			string folder;
-			if(useOverride && overrideFolder != null) {
+			if(useOverride && !UseDefaultDataFolders && overrideFolder != null) {
 				folder = overrideFolder;
 			} else {
 				folder = defaultFolderName;

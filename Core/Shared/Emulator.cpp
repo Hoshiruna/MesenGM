@@ -1195,14 +1195,20 @@ bool Emulator::IsEmulationThread()
 
 void Emulator::SetStopCode(int32_t stopCode)
 {
-	if(_stopCode != 0) {
+	int32_t expected = 0;
+	if(!_stopCode.compare_exchange_strong(expected, stopCode)) {
 		//If a non-0 code was already set, keep the previous value
 		return;
 	}
 
-	_stopCode = stopCode;
-	if(!_stopFlag && !_stopRequested) {
+	if(_settings->CheckFlag(EmulationFlags::ConsoleMode)) {
+		//The test runner owns teardown and reads the stop code before releasing the core.
+		_stopFlag = true;
 		_stopRequested = true;
+		return;
+	}
+
+	if(!_stopFlag && !_stopRequested.exchange(true)) {
 		thread stopEmuTask([this]() {
 			Stop(true);
 		});

@@ -243,6 +243,11 @@ extern "C"
 		return _emu->GetStopCode();
 	}
 
+	DllExport bool __stdcall IsStopRequested()
+	{
+		return _emu->IsStopRequested();
+	}
+
 	DllExport void __stdcall Stop()
 	{
 		_emu->GetGameClient()->Disconnect();
