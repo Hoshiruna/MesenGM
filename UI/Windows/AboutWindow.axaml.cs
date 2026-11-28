@@ -82,6 +82,7 @@ namespace Mesen.Windows
 				new("BizHawk (PCEHawk)", "", "MIT", "https://github.com/TASEmulators/BizHawk"),
 				new("FrankenGraphics", "", "Mesen icon", "https://www.patreon.com/frankengraphics"),
 				new("Mighty Mo", "", "Cheat DB", ""),
+				new("Musashi (Karl Stenerud)", "Karl Stenerud", "MIT", "https://github.com/kstenerud/Musashi"),
 			};
 			AcknowledgeList.Sort((a, b) => a.Name.CompareTo(b.Name));
 

@@ -1,6 +1,6 @@
 # MesenGM
 
-Mesen is a multi-system emulator for Windows, Linux, and macOS. It supports NES, SNES, Game Boy (GB/SGB/GBC), Game Boy Advance, PC Engine, SMS/Game Gear, and WonderSwan (WS/WSC).
+Mesen is a multi-system emulator for Windows, Linux, and macOS. It supports NES, SNES, Game Boy (GB/SGB/GBC), Game Boy Advance, PC Engine, SMS/Game Gear, Genesis/Mega Drive,and WonderSwan (WS/WSC).
 
 This branch is a fork of MesenCE, created to explore the possibility of running Genesis/Megadrive on Mesen.
 

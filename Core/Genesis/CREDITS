@@ -1,0 +1,17 @@
+Mega Drive / Genesis core CREDITS
+
+Sour and the Mesen contributors developed the emulator and the Master System
+PSG implementation used as the basis for the Genesis PSG.
+https://github.com/SourMesen/Mesen2
+
+mr-ke developed the native Genesis core for Mesen2.
+https://github.com/mr-ke/Mesen2/tree/142d0f20d2055453c5ea07552787db178444d4d8/Core/Genesis
+
+Near and the ares contributors provided the implementations used for the
+M68000, Z80, VDP, YM2612, and M24C EEPROM ports.
+https://github.com/ares-emulator/ares
+
+Karl Stenerud wrote the Musashi disassembler adapted for the Genesis debugger.
+https://github.com/kstenerud/Musashi/blob/313ebf1bd9f4d0d93341eb5ce21fd8a119e9dbdd/m68kdasm.c
+
+Shay Green wrote blip_buf, the shared audio resampler used by the Genesis PSG and YM2612.
